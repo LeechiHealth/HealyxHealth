@@ -25,7 +25,26 @@ export async function POST(req: NextRequest) {
       response_format: 'json',
     })
 
-    return NextResponse.json({ transcript: transcription.text?.trim() || '' })
+    const text = transcription.text?.trim() || ''
+
+    // Whisper hallucinates these phrases on silent/short audio — reject them
+    const HALLUCINATIONS = [
+      'you', 'You', 'you.', 'You.',
+      'Thank you.', 'Thank you for watching.',
+      'Thank you for watching!', 'Thanks for watching.',
+      'Thanks for watching!', 'Bye.', 'Bye!',
+      'Subscribe.', 'Like and subscribe.',
+      'www.', '.com', 'subtitles by', 'Subtitles by',
+    ]
+    const isHallucination = HALLUCINATIONS.some(h =>
+      text.toLowerCase() === h.toLowerCase()
+    ) || text.length <= 2
+
+    if (isHallucination) {
+      return NextResponse.json({ transcript: '' })
+    }
+
+    return NextResponse.json({ transcript: text })
   } catch (error: any) {
     console.error('Transcription error:', error)
     if (error?.status === 429) {
