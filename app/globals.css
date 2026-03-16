@@ -1,0 +1,142 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Dark futuristic theme - always dark */
+  --background: oklch(0.10 0.02 240);
+  --foreground: oklch(0.95 0.01 240);
+  --card: oklch(0.14 0.025 240);
+  --card-foreground: oklch(0.95 0.01 240);
+  --popover: oklch(0.14 0.025 240);
+  --popover-foreground: oklch(0.95 0.01 240);
+  --primary: oklch(0.72 0.15 195);
+  --primary-foreground: oklch(0.10 0.02 240);
+  --secondary: oklch(0.18 0.03 240);
+  --secondary-foreground: oklch(0.90 0.01 240);
+  --muted: oklch(0.20 0.025 240);
+  --muted-foreground: oklch(0.60 0.02 240);
+  --accent: oklch(0.72 0.15 195);
+  --accent-foreground: oklch(0.10 0.02 240);
+  --destructive: oklch(0.55 0.2 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.25 0.03 240);
+  --input: oklch(0.20 0.025 240);
+  --ring: oklch(0.72 0.15 195);
+  --radius: 0.75rem;
+  
+  /* Health-specific colors - cyan/teal focused */
+  --health-optimal: oklch(0.72 0.15 195);
+  --health-normal: oklch(0.75 0.15 95);
+  --health-warning: oklch(0.85 0.18 85);
+  --health-danger: oklch(0.7 0.2 350);
+  --health-score-gradient-start: oklch(0.55 0.15 195);
+  --health-score-gradient-end: oklch(0.65 0.12 175);
+  
+  /* Chart colors */
+  --chart-1: oklch(0.72 0.15 195);
+  --chart-2: oklch(0.85 0.18 85);
+  --chart-3: oklch(0.7 0.2 350);
+  --chart-4: oklch(0.65 0.15 270);
+  --chart-5: oklch(0.75 0.12 200);
+  
+  --sidebar: oklch(0.12 0.025 240);
+  --sidebar-foreground: oklch(0.95 0.01 240);
+  --sidebar-primary: oklch(0.72 0.15 195);
+  --sidebar-primary-foreground: oklch(0.10 0.02 240);
+  --sidebar-accent: oklch(0.18 0.03 240);
+  --sidebar-accent-foreground: oklch(0.90 0.01 240);
+  --sidebar-border: oklch(0.25 0.03 240);
+  --sidebar-ring: oklch(0.72 0.15 195);
+  
+  /* Glow effects */
+  --glow-cyan: 0 0 20px oklch(0.72 0.15 195 / 0.4);
+  --glow-cyan-strong: 0 0 30px oklch(0.72 0.15 195 / 0.6);
+}
+
+@theme inline {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  
+  /* Health-specific colors */
+  --color-health-optimal: var(--health-optimal);
+  --color-health-normal: var(--health-normal);
+  --color-health-warning: var(--health-warning);
+  --color-health-danger: var(--health-danger);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom glow utilities */
+.glow-cyan {
+  box-shadow: var(--glow-cyan);
+}
+
+.glow-cyan-strong {
+  box-shadow: var(--glow-cyan-strong);
+}
+
+/* Gradient text utility */
+.text-gradient-cyan {
+  background: linear-gradient(135deg, oklch(0.72 0.15 195), oklch(0.65 0.12 175));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass effect */
+.glass {
+  background: oklch(0.14 0.025 240 / 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid oklch(0.30 0.03 240 / 0.5);
+}
+
+.glass-darker {
+  background: oklch(0.10 0.02 240 / 0.9);
+  backdrop-filter: blur(16px);
+  border: 1px solid oklch(0.25 0.03 240 / 0.5);
+}
