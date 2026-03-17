@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const transcription = await groq.audio.transcriptions.create({
       file: audioFile,
-      model: 'distil-whisper-large-v2-en',
+      model: 'distil-whisper-large-v3-en',
       language: 'en',
       response_format: 'json',
       // Prompt reduces hallucinations by setting context for Whisper

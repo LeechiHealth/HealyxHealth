@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/components/AuthContext'
 
@@ -13,47 +13,6 @@ export function useChat() {
   const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
-  const [historyLoading, setHistoryLoading] = useState(false)
-
-  // Load the most recent conversation on mount
-  useEffect(() => {
-    if (!user) return
-    loadLastConversation()
-  }, [user])
-
-  async function loadLastConversation() {
-    if (!user) return
-    setHistoryLoading(true)
-    try {
-      // Get the most recent conversation
-      const { data: conv } = await supabase
-        .from('chat_conversations')
-        .select('id, title')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (!conv) return
-
-      setConversationId(conv.id)
-
-      // Load its messages
-      const { data: msgs } = await supabase
-        .from('chat_messages')
-        .select('id, role, content, created_at')
-        .eq('conversation_id', conv.id)
-        .order('created_at', { ascending: true })
-
-      if (msgs && msgs.length > 0) {
-        setMessages(msgs)
-      }
-    } catch {
-      // No previous conversation — that's fine
-    } finally {
-      setHistoryLoading(false)
-    }
-  }
 
   const sendMessage = async (content: string, fileData?: FileAttachment) => {
     if (!user || (!content.trim() && !fileData)) return
@@ -156,5 +115,5 @@ export function useChat() {
     setConversationId(null)
   }
 
-  return { messages, loading, historyLoading, sendMessage, clearChat, conversationId }
+  return { messages, loading, sendMessage, clearChat, conversationId }
 }

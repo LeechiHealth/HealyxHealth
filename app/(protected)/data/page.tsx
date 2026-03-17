@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/header";
 import { DataSidebar } from "@/components/data/data-sidebar";
-import { HealthScoreSummary } from "@/components/data/health-score-summary";
 import { BiomarkersSummary } from "@/components/data/biomarkers-summary";
 import { BiomarkersList } from "@/components/data/biomarkers-list";
 import { VitalsDashboard } from "@/components/data/vitals-dashboard";
@@ -587,7 +587,9 @@ function VisitNotesView() {
 }
 
 export default function DataPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("healthProfile");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab") as TabId | null;
+  const [activeTab, setActiveTab] = useState<TabId>(tabParam && ["healthProfile","vitals","labResults","connectedServices","documents","activity"].includes(tabParam) ? tabParam : "healthProfile");
   const [categoryFilter, setCategoryFilter] = useState("All data");
   const [isEditing, setIsEditing] = useState(false);
   const [labRefreshKey, setLabRefreshKey] = useState(0);
@@ -651,7 +653,6 @@ export default function DataPage() {
                 </div>
               </div>
 
-              <HealthScoreSummary key={`hs-${labRefreshKey}`} />
               <BiomarkersSummary key={`bs-${labRefreshKey}`} />
               <BiomarkersList key={`bl-${labRefreshKey}`} categoryFilter={categoryFilter} />
             </div>

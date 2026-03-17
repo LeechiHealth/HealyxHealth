@@ -9,9 +9,9 @@ const nextConfig = {
   // Prevent Next.js from bundling Node-only packages — load them at runtime
   serverExternalPackages: ['canvas'],
   experimental: {
-    // Allow up to 10MB request bodies — needed for base64-encoded medical images
+    // Allow up to 15MB request bodies — needed for base64-encoded medical images and health data exports
     serverActions: {
-      bodySizeLimit: '10mb',
+      bodySizeLimit: '15mb',
     },
   },
 }

@@ -141,7 +141,7 @@ export function Timeline({ showViewAllLink = true, limit = 8 }: TimelineProps) {
         )}
         {showViewAllLink && (
           <div className="mt-4 text-center py-2">
-            <Link href="/data" className="text-xs text-muted-foreground hover:text-cyan-400 transition-colors">
+            <Link href="/data?tab=activity" className="text-xs text-muted-foreground hover:text-cyan-400 transition-colors">
               View all activity →
             </Link>
           </div>

@@ -32,7 +32,6 @@ export function VitalsDashboard() {
         .order('recorded_at', { ascending: false })
 
       if (error) throw error
-      console.log('Vitals fetched:', data)
       setVitals(data || [])
     } catch (error) {
       console.error('Error fetching vitals:', error)
