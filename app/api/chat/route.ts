@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { groq, GROQ_MODEL } from '@/lib/groq/client'
+import { z } from 'zod'
+import { inflateSync, inflateRawSync } from 'zlib'
 
-// Vision-capable model for image analysis
 const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
 
 const SYSTEM_PROMPT = `You are a helpful, empathetic health assistant for HEALYX, a personal health intelligence platform.
@@ -19,34 +20,94 @@ When analyzing uploaded documents or images:
 
 Be concise, warm, and evidence-based.`
 
-async function extractPdfText(base64: string): Promise<string> {
-  try {
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs' as any)
-    pdfjs.GlobalWorkerOptions.workerSrc = ''
-    const buffer = Buffer.from(base64, 'base64')
-    const uint8 = new Uint8Array(buffer)
-    const pdf = await pdfjs.getDocument({
-      data: uint8,
-      useWorkerFetch: false,
-      isEvalSupported: false,
-      useSystemFonts: true,
-    }).promise
-    let text = ''
-    for (let i = 1; i <= Math.min(pdf.numPages, 8); i++) {
-      const page = await pdf.getPage(i)
-      const content = await page.getTextContent()
-      text += content.items.map((item: any) => ('str' in item ? item.str : '')).join(' ') + '\n'
-    }
-    return text.trim().substring(0, 5000)
-  } catch {
-    return ''
-  }
+// ── Input validation schema ────────────────────────────────────────────────
+const ChatSchema = z.object({
+  message: z.string().max(4000).optional(),
+  fileData: z.object({
+    base64: z.string().max(15_000_000), // ~10MB base64
+    mimeType: z.string().max(100),
+    name: z.string().max(255).optional(),
+  }).optional(),
+  conversationHistory: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string().max(4000),
+  })).max(20).optional(),
+})
+
+// ── PDF text extraction (same zlib approach as labs/extract) ───────────────
+function decodePDFString(s: string): string {
+  return s
+    .replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/\\t/g, '\t')
+    .replace(/\\\\/g, '\\')
+    .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
+    .replace(/\\(.)/g, '$1')
 }
 
+function extractTextFromStream(content: string): string {
+  const pieces: string[] = []
+  const btEtRe = /BT[\s\S]*?ET/g
+  let block: RegExpExecArray | null
+  while ((block = btEtRe.exec(content)) !== null) {
+    const blk = block[0]
+    const tjRe = /\(([^)\\]*(?:\\[\s\S][^)\\]*)*)\)\s*(?:Tj|'|")/g
+    let m: RegExpExecArray | null
+    while ((m = tjRe.exec(blk)) !== null) pieces.push(decodePDFString(m[1]))
+    const tjArrRe = /\[([\s\S]*?)\]\s*TJ/g
+    while ((m = tjArrRe.exec(blk)) !== null) {
+      const itemRe = /\(([^)\\]*(?:\\[\s\S][^)\\]*)*)\)/g
+      let s: RegExpExecArray | null
+      while ((s = itemRe.exec(m[1])) !== null) pieces.push(decodePDFString(s[1]))
+    }
+    pieces.push(' ')
+  }
+  return pieces.join('')
+}
+
+function extractPdfTextFromBuffer(buffer: Buffer): string {
+  const SB = Buffer.from('stream')
+  const EB = Buffer.from('endstream')
+  const allText: string[] = []
+  let pos = 0
+
+  while (pos < buffer.length) {
+    const streamPos = buffer.indexOf(SB, pos)
+    if (streamPos === -1) break
+    let dataStart = streamPos + SB.length
+    if (buffer[dataStart] === 0x0d) dataStart++
+    if (buffer[dataStart] === 0x0a) dataStart++
+    const endPos = buffer.indexOf(EB, dataStart)
+    if (endPos === -1) break
+    let dataEnd = endPos
+    if (dataEnd > 0 && buffer[dataEnd - 1] === 0x0a) dataEnd--
+    if (dataEnd > 0 && buffer[dataEnd - 1] === 0x0d) dataEnd--
+
+    if (dataEnd > dataStart) {
+      const raw = buffer.slice(dataStart, dataEnd)
+      let decoded: Buffer
+      try { decoded = inflateSync(raw) }
+      catch { try { decoded = inflateRawSync(raw) } catch { decoded = raw } }
+      const t = extractTextFromStream(decoded.toString('latin1'))
+      if (t.trim()) allText.push(t)
+    }
+    pos = endPos + EB.length
+  }
+
+  allText.push(extractTextFromStream(buffer.toString('latin1')))
+  return allText.join('\n').replace(/\s+/g, ' ').trim().substring(0, 5000)
+}
+
+// ── Route handler ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { message, fileData, conversationHistory } = body
+
+    // Validate input
+    const parsed = ChatSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    }
+
+    const { message, fileData, conversationHistory } = parsed.data
 
     if (!message && !fileData) {
       return NextResponse.json({ error: 'Message or file required' }, { status: 400 })
@@ -56,17 +117,14 @@ export async function POST(request: NextRequest) {
     const isPdf = fileData?.mimeType === 'application/pdf'
     const userText = message?.trim() || ''
 
-    // Build conversation history messages
     const historyMessages: Array<{ role: 'user' | 'assistant'; content: string }> = []
     if (Array.isArray(conversationHistory)) {
       for (const turn of conversationHistory.slice(-10)) {
-        if (turn.role === 'user' || turn.role === 'assistant') {
-          historyMessages.push({ role: turn.role, content: String(turn.content) })
-        }
+        historyMessages.push({ role: turn.role, content: turn.content })
       }
     }
 
-    // ── Image files: use vision model ─────────────────────────────────────────
+    // ── Image: vision model ──────────────────────────────────────────────────
     if (isImage && fileData?.base64) {
       const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`
       const textPrompt = userText || 'Please analyze this health document or image and explain what it shows. Highlight any important values, findings, or things I should discuss with my doctor.'
@@ -93,18 +151,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ reply })
     }
 
-    // ── PDF files: extract text then query ────────────────────────────────────
+    // ── PDF: zlib extraction then text query ─────────────────────────────────
     let userContent = userText
     if (isPdf && fileData?.base64) {
-      const extracted = await extractPdfText(fileData.base64)
+      const buffer = Buffer.from(fileData.base64, 'base64')
+      const extracted = extractPdfTextFromBuffer(buffer)
       if (extracted && extracted.length > 20) {
-        userContent = `[PDF attached: ${fileData.name || 'document.pdf'}]\n\nExtracted content:\n${extracted}\n\n${userText || 'Please analyze this document and explain what it shows in the context of my health. Highlight key findings and what I should discuss with my doctor.'}`
+        userContent = `[PDF: ${fileData.name || 'document.pdf'}]\n\nContent:\n${extracted}\n\n${userText || 'Please analyze this document and explain the key health findings in plain English.'}`
       } else {
-        userContent = `[PDF attached: ${fileData.name || 'document.pdf'}] — I could not extract text from this file (it may be a scanned image). ${userText || 'Can you help me understand what I should look for in this type of document?'}`
+        userContent = `[PDF: ${fileData.name || 'document.pdf'}] — could not extract text (likely a scanned image). ${userText || 'What should I look for in this type of document?'}`
       }
     } else if (fileData) {
-      // Other file types
-      userContent = `[File attached: ${fileData.name || 'file'}]\n\n${userText || 'Please help me understand this document in the context of my health.'}`
+      userContent = `[File: ${fileData.name || 'file'}]\n\n${userText || 'Please help me understand this document.'}`
     }
 
     const completion = await groq.chat.completions.create({
@@ -126,12 +184,9 @@ export async function POST(request: NextRequest) {
     const raw = error as any
     const status: number = raw?.status ?? raw?.response?.status ?? 500
     const msg: string = raw?.message ?? 'Failed to generate response'
-    console.error(`[chat/route] error — ${status}: ${msg}`)
+    console.error(`[chat/route] ${status}: ${msg}`)
     if (status === 429) {
-      return NextResponse.json(
-        { error: 'Rate limit reached. Please wait a moment and try again.' },
-        { status: 429 }
-      )
+      return NextResponse.json({ error: 'Rate limit reached. Please wait a moment and try again.' }, { status: 429 })
     }
     return NextResponse.json({ error: msg }, { status: status >= 400 && status < 600 ? status : 500 })
   }

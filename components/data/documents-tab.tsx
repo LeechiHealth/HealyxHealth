@@ -5,6 +5,7 @@ import { Upload, FileText, Image, Trash2, Eye, Download, Loader2, FolderOpen } f
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/components/AuthContext"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 interface Document {
   id: string
@@ -117,8 +118,10 @@ export function DocumentsTab() {
       }
 
       await fetchDocuments()
+      toast.success(`"${file.name}" uploaded successfully`)
     } catch (err: any) {
       setError(err.message)
+      toast.error(`Upload failed: ${err.message}`)
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -131,15 +134,16 @@ export function DocumentsTab() {
 
     setDeletingId(doc.id)
     try {
-      // Delete from storage then DB — client is authenticated so RLS works
       if (doc.storage_path) {
         await supabase.storage.from('documents').remove([doc.storage_path])
       }
       const { error } = await supabase.from('documents').delete().eq('id', doc.id)
       if (error) throw new Error(error.message)
       setDocuments(prev => prev.filter(d => d.id !== doc.id))
+      toast.success(`"${doc.file_name}" deleted`)
     } catch (err: any) {
       setError(err.message)
+      toast.error(`Delete failed: ${err.message}`)
     } finally {
       setDeletingId(null)
     }
@@ -151,8 +155,9 @@ export function DocumentsTab() {
         .from('documents')
         .createSignedUrl(doc.storage_path, 60)
       if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+      else toast.error('Could not open file.')
     } catch {
-      setError('Could not open file. Please try downloading instead.')
+      toast.error('Could not open file. Try downloading instead.')
     }
   }
 
@@ -168,7 +173,7 @@ export function DocumentsTab() {
         a.click()
       }
     } catch {
-      setError('Download failed.')
+      toast.error('Download failed.')
     }
   }
 

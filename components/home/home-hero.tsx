@@ -8,6 +8,7 @@ import { Header } from "@/components/header"
 import { useChat, FileAttachment } from "@/hooks/usechat"
 import { useAuth } from "@/components/AuthContext"
 import { supabase } from "@/lib/supabase/client"
+import { toast } from "sonner"
 import { ChatSidebar } from "@/components/home/chat-sidebar"
 import {
   Dialog,
@@ -110,7 +111,15 @@ export function HomeHero() {
     setVisitSaved(false)
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
+      })
 
       // Pick best supported format (Groq Whisper accepts webm, mp4, wav)
       const actualMimeType =
@@ -136,8 +145,8 @@ export function HomeHero() {
         const durationMs = Date.now() - startTime
         const blob = new Blob(audioChunksRef.current, { type: blobMimeType })
 
-        if (durationMs < 1500 || blob.size < 2000) {
-          setRecordingError("Recording too short — please speak for at least 2 seconds.")
+        if (durationMs < 2000 || blob.size < 3000) {
+          setRecordingError("Recording too short — please speak for at least 3 seconds.")
           return
         }
 
@@ -182,28 +191,31 @@ export function HomeHero() {
   }
 
   const handleSaveVisitNote = async () => {
-    if (!transcript.trim() || !user?.id) return
+    if (!transcript.trim()) return
     setSavingVisit(true)
     try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const accessToken = sessionData?.session?.access_token
       const res = await fetch("/api/visits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, userId: user.id, accessToken }),
+        body: JSON.stringify({ transcript }),
       })
       if (res.ok) {
         setVisitSaved(true)
         setTranscript("")
+        toast.success("Visit note saved!")
         setTimeout(() => {
           setVisitSaved(false)
           setIsMenuOpen(false)
         }, 2000)
       } else {
-        setRecordingError("Failed to save visit note. Please try again.")
+        const errData = await res.json().catch(() => ({}))
+        const msg = errData?.error || "Failed to save visit note. Please try again."
+        setRecordingError(msg)
+        toast.error(msg)
       }
     } catch {
       setRecordingError("Failed to save visit note. Please try again.")
+      toast.error("Failed to save visit note.")
     } finally {
       setSavingVisit(false)
     }

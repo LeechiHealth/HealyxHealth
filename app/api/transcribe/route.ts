@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { groq } from '@/lib/groq/client'
 import { toFile } from 'groq-sdk'
+import { z } from 'zod'
+
+const TranscribeSchema = z.object({
+  base64: z.string().min(1).max(15_000_000),
+  mimeType: z.string().max(100).optional(),
+})
 
 export async function POST(req: NextRequest) {
   try {
-    const { base64, mimeType } = await req.json()
+    const body = await req.json()
+    const parsed = TranscribeSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    }
+    const { base64, mimeType } = parsed.data
 
     if (!base64) {
       return NextResponse.json({ error: 'Audio data required' }, { status: 400 })
@@ -20,9 +31,11 @@ export async function POST(req: NextRequest) {
 
     const transcription = await groq.audio.transcriptions.create({
       file: audioFile,
-      model: 'whisper-large-v3',
+      model: 'distil-whisper-large-v2-en',
       language: 'en',
       response_format: 'json',
+      // Prompt reduces hallucinations by setting context for Whisper
+      prompt: 'Medical visit notes, symptoms, diagnoses, medications, and health discussions.',
     })
 
     const text = transcription.text?.trim() || ''

@@ -1,31 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { transcript, userId, title, accessToken } = await request.json()
+    // Always get the authenticated user from the JWT — never trust userId from the body
+    const supabase = await createServerClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!transcript?.trim() || !userId) {
-      return NextResponse.json({ error: 'Transcript and userId required' }, { status: 400 })
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Use authenticated client so RLS passes
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      accessToken
-        ? { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
-        : {}
-    )
+    const body = await request.json()
+    const { transcript, title } = body
 
-    const noteTitle = title?.trim() || `Visit note — ${new Date().toLocaleDateString('en-US', {
+    if (!transcript?.trim()) {
+      return NextResponse.json({ error: 'Transcript is required' }, { status: 400 })
+    }
+
+    if (transcript.trim().length > 50000) {
+      return NextResponse.json({ error: 'Transcript too long' }, { status: 400 })
+    }
+
+    const noteTitle = title?.trim()?.substring(0, 200) || `Visit note — ${new Date().toLocaleDateString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric',
     })}`
 
     const { data, error } = await supabase
       .from('visit_notes')
       .insert({
-        user_id: userId,
+        user_id: user.id,
         title: noteTitle,
         transcript: transcript.trim(),
       })

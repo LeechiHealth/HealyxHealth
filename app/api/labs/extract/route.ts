@@ -1,93 +1,143 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { groq, GROQ_MODEL } from '@/lib/groq/client'
+import { inflateSync, inflateRawSync } from 'zlib'
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'fs'
 import { execSync } from 'child_process'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
-// ── Pure-JS PDF text extractor ─────────────────────────────────────────────
-// Works cross-platform (Windows/Mac/Linux) with no native dependencies.
-// Handles digital lab-report PDFs that contain embedded text streams.
+// ── PDF text extraction — byte-level Buffer parsing ─────────────────────────
+// String regex fails on binary PDF streams. We use Buffer.indexOf() to locate
+// stream start/end positions precisely, then decompress with Node built-in zlib.
+
+function findPDFStreams(buf: Buffer): Buffer[] {
+  const SB = Buffer.from('stream')
+  const EB = Buffer.from('endstream')
+  const streams: Buffer[] = []
+  let pos = 0
+
+  while (pos < buf.length) {
+    const streamPos = buf.indexOf(SB, pos)
+    if (streamPos === -1) break
+
+    // Skip 'stream' keyword + optional \r\n or \n
+    let dataStart = streamPos + SB.length
+    if (buf[dataStart] === 0x0d) dataStart++ // \r
+    if (buf[dataStart] === 0x0a) dataStart++ // \n
+
+    const endPos = buf.indexOf(EB, dataStart)
+    if (endPos === -1) break
+
+    // Trim trailing \r\n before endstream marker
+    let dataEnd = endPos
+    if (dataEnd > 0 && buf[dataEnd - 1] === 0x0a) dataEnd--
+    if (dataEnd > 0 && buf[dataEnd - 1] === 0x0d) dataEnd--
+
+    if (dataEnd > dataStart) {
+      streams.push(buf.slice(dataStart, dataEnd))
+    }
+
+    pos = endPos + EB.length
+  }
+
+  return streams
+}
+
 function decodePDFString(s: string): string {
   return s
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\r')
-    .replace(/\\t/g, '\t')
+    .replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/\\t/g, '\t')
     .replace(/\\\\/g, '\\')
     .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
     .replace(/\\(.)/g, '$1')
 }
 
-function extractTextJS(buffer: Buffer): string {
-  const content = buffer.toString('latin1')
+function extractTextFromDecodedStream(content: string): string {
   const pieces: string[] = []
-
-  // Walk every BT…ET text block
-  const textBlockRe = /BT[\s\S]*?ET/g
+  const btEtRe = /BT[\s\S]*?ET/g
   let block: RegExpExecArray | null
-  while ((block = textBlockRe.exec(content)) !== null) {
+
+  while ((block = btEtRe.exec(content)) !== null) {
     const blk = block[0]
 
-    // Literal string operators:  (text) Tj   (text) '   (text) "
-    const litRe = /\(([^)\\]*(?:\\[\s\S][^)\\]*)*)\)\s*(?:Tj|'|")/g
+    // Literal strings:  (hello) Tj   (hello) '   (hello) "
+    const tjRe = /\(([^)\\]*(?:\\[\s\S][^)\\]*)*)\)\s*(?:Tj|'|")/g
     let m: RegExpExecArray | null
-    while ((m = litRe.exec(blk)) !== null) {
-      pieces.push(decodePDFString(m[1]))
-    }
+    while ((m = tjRe.exec(blk)) !== null) pieces.push(decodePDFString(m[1]))
 
-    // Array operator:  [(text) -200 (more text)] TJ
-    const tjRe = /\[([\s\S]*?)\]\s*TJ/g
-    while ((m = tjRe.exec(blk)) !== null) {
-      const inner = m[1]
-      const strRe = /\(([^)\\]*(?:\\[\s\S][^)\\]*)*)\)/g
+    // Array operator:  [(hello) -200 (world)] TJ
+    const tjArrRe = /\[([\s\S]*?)\]\s*TJ/g
+    while ((m = tjArrRe.exec(blk)) !== null) {
+      const itemRe = /\(([^)\\]*(?:\\[\s\S][^)\\]*)*)\)/g
       let s: RegExpExecArray | null
-      while ((s = strRe.exec(inner)) !== null) {
-        pieces.push(decodePDFString(s[1]))
-      }
+      while ((s = itemRe.exec(m[1])) !== null) pieces.push(decodePDFString(s[1]))
     }
 
     pieces.push(' ')
   }
 
-  return pieces.join('').replace(/\s+/g, ' ').trim()
+  return pieces.join('')
 }
 
-// ── pdftotext extractor (Linux/Mac only, faster & handles more encodings) ──
+function extractTextJS(buffer: Buffer): string {
+  const streams = findPDFStreams(buffer)
+  const allText: string[] = []
+
+  for (const raw of streams) {
+    let decoded: Buffer | null = null
+
+    // Try FlateDecode (most common in modern PDFs)
+    try { decoded = inflateSync(raw) } catch { /* not flate compressed */ }
+
+    // Try raw deflate (no zlib header)
+    if (!decoded) {
+      try { decoded = inflateRawSync(raw) } catch { /* not raw deflate */ }
+    }
+
+    // Uncompressed — use as-is
+    if (!decoded) decoded = raw
+
+    const text = extractTextFromDecodedStream(decoded.toString('latin1'))
+    if (text.trim().length > 0) allText.push(text)
+  }
+
+  // Also scan the whole buffer uncompressed (catches PDFs with no stream compression)
+  const directText = extractTextFromDecodedStream(buffer.toString('latin1'))
+  if (directText.trim().length > 0) allText.push(directText)
+
+  return allText.join('\n').replace(/\s+/g, ' ').trim()
+}
+
+// ── pdftotext (Linux/Mac in production) ────────────────────────────────────
 function extractTextNative(buffer: Buffer): string {
-  const tmpIn = join(tmpdir(), `healyx-${Date.now()}.pdf`)
-  const tmpOut = join(tmpdir(), `healyx-${Date.now()}.txt`)
+  const id = Date.now()
+  const tmpIn = join(tmpdir(), `healyx-${id}.pdf`)
+  const tmpOut = join(tmpdir(), `healyx-${id}.txt`)
   try {
     writeFileSync(tmpIn, buffer)
     execSync(`pdftotext -layout -l 10 "${tmpIn}" "${tmpOut}"`, { timeout: 15000 })
     return readFileSync(tmpOut, 'utf-8').trim()
   } finally {
-    if (existsSync(tmpIn)) unlinkSync(tmpIn)
-    if (existsSync(tmpOut)) unlinkSync(tmpOut)
+    if (existsSync(tmpIn)) try { unlinkSync(tmpIn) } catch { /* ok */ }
+    if (existsSync(tmpOut)) try { unlinkSync(tmpOut) } catch { /* ok */ }
   }
 }
 
 async function extractPdfText(base64: string): Promise<string> {
   const buffer = Buffer.from(base64, 'base64')
 
-  // 1. Try pdftotext (available on Linux/Mac in production)
+  // 1. pdftotext — Linux/Mac production path, handles all encoding types
   try {
     execSync('pdftotext -v 2>&1', { timeout: 3000 })
     const text = extractTextNative(buffer)
     if (text.length >= 20) return text.substring(0, 6000)
-  } catch {
-    // pdftotext not available (Windows dev) — fall through to pure-JS
-  }
+  } catch { /* Windows dev or not installed */ }
 
-  // 2. Pure-JS fallback — works everywhere, handles digital PDFs
-  try {
-    const text = extractTextJS(buffer)
-    return text.substring(0, 6000)
-  } catch (err) {
-    console.error('PDF JS extraction error:', err)
-    return ''
-  }
+  // 2. Pure-JS byte-level extraction — cross-platform, no npm deps
+  const text = extractTextJS(buffer)
+  return text.substring(0, 6000)
 }
 
+// ── Route handler ───────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const { base64, mimeType, fileName } = await req.json()
@@ -109,7 +159,7 @@ export async function POST(req: NextRequest) {
     if (!rawText || rawText.length < 20) {
       return NextResponse.json({
         biomarkers: [],
-        message: 'Could not extract text from this PDF. If it is a scanned image, try uploading a JPG/PNG screenshot of the report instead, or use Manual Entry.',
+        message: 'Could not extract text from this PDF. If it is a scanned document, upload it as a JPG or PNG image instead — the AI can read images directly.',
       })
     }
 

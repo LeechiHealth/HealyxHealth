@@ -2,6 +2,7 @@ import React from "react"
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ClientLayout } from '@/components/ClientLayout'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const geistSans = Geist({ 
@@ -33,6 +34,7 @@ export default function RootLayout({
        <ClientLayout>
           {children}
         </ClientLayout>
+        <Toaster position="bottom-right" richColors closeButton />
         <Analytics />
       </body>
     </html>
