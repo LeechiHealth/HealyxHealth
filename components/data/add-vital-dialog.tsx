@@ -112,7 +112,7 @@ export function AddVitalDialog({ onSuccess }: { onSuccess?: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30">
+        <Button className="bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30">
           <Plus className="h-4 w-4 mr-2" />
           Add Vital
         </Button>
@@ -214,7 +214,7 @@ export function AddVitalDialog({ onSuccess }: { onSuccess?: () => void }) {
             <Button
               type="submit"
               disabled={loading}
-              className="bg-cyan-500 text-white hover:bg-cyan-600"
+              className="bg-primary text-white hover:bg-primary"
             >
               {loading ? "Adding..." : "Add Vital"}
             </Button>

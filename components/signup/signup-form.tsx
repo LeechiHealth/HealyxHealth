@@ -204,22 +204,22 @@ export function SignupForm() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
         <a href="/signin" className="mb-8">
-          <span className="text-2xl font-semibold tracking-tight text-cyan-400">healyx</span>
+          <span className="text-2xl font-semibold tracking-tight text-primary">healyx</span>
         </a>
-        <div className="w-full max-w-lg glass rounded-2xl p-8 border border-cyan-500/20 text-center space-y-6">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-cyan-500/20 border border-cyan-500/30 glow-cyan">
-            <Mail className="h-8 w-8 text-cyan-400" />
+        <div className="w-full max-w-lg glass rounded-2xl p-8 border border-primary/20 text-center space-y-6">
+          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-primary/20 border border-primary/30 glow-cyan">
+            <Mail className="h-8 w-8 text-primary" />
           </div>
           <div>
             <h2 className="text-xl font-semibold text-foreground mb-1">Check your email</h2>
             <p className="text-sm text-muted-foreground">
-              We sent a confirmation link to <span className="text-cyan-400">{email}</span>.
+              We sent a confirmation link to <span className="text-primary">{email}</span>.
               Click it to activate your account, then sign in.
             </p>
           </div>
           <Button
             onClick={() => router.push("/signin")}
-            className="w-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 glow-cyan"
+            className="w-full bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 glow-cyan"
           >
             Go to Sign In
             <ArrowRight className="h-4 w-4 ml-2" />
@@ -234,7 +234,7 @@ export function SignupForm() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
       {/* Logo */}
       <a href="/" className="mb-8">
-        <span className="text-2xl font-semibold tracking-tight text-cyan-400">healyx</span>
+        <span className="text-2xl font-semibold tracking-tight text-primary">healyx</span>
       </a>
 
       {/* Progress Bar */}
@@ -244,14 +244,14 @@ export function SignupForm() {
             key={i}
             className={cn(
               "h-1.5 rounded-full transition-all duration-300",
-              i + 1 <= step ? "bg-cyan-400 w-10" : "bg-secondary w-6"
+              i + 1 <= step ? "bg-primary w-10" : "bg-secondary w-6"
             )}
           />
         ))}
       </div>
 
       {/* Form Card */}
-      <div className="w-full max-w-lg glass rounded-2xl p-8 border border-cyan-500/20">
+      <div className="w-full max-w-lg glass rounded-2xl p-8 border border-primary/20">
 
         {/* Global error banner */}
         {error && (
@@ -275,7 +275,7 @@ export function SignupForm() {
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   placeholder="First name"
-                  className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground"
+                  className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground"
                 />
               </div>
               <div className="flex-1 space-y-2">
@@ -285,7 +285,7 @@ export function SignupForm() {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="Last name"
-                  className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground"
+                  className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground"
                 />
               </div>
             </div>
@@ -297,7 +297,7 @@ export function SignupForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground"
+                className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground"
               />
             </div>
             <div className="space-y-2">
@@ -308,7 +308,7 @@ export function SignupForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 8 characters"
-                className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground"
+                className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground"
               />
             </div>
             <div className="space-y-2">
@@ -319,7 +319,7 @@ export function SignupForm() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter your password"
-                className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground"
+                className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground"
               />
             </div>
           </div>
@@ -339,7 +339,7 @@ export function SignupForm() {
               <div className="flex gap-3">
                 <div className="flex-1">
                   <Select value={heightFeet} onValueChange={setHeightFeet}>
-                    <SelectTrigger className="bg-secondary border-border focus:border-cyan-500/50 text-foreground">
+                    <SelectTrigger className="bg-secondary border-border focus:border-primary/50 text-foreground">
                       <SelectValue placeholder="Feet" />
                     </SelectTrigger>
                     <SelectContent className="glass border-border">
@@ -353,7 +353,7 @@ export function SignupForm() {
                 </div>
                 <div className="flex-1">
                   <Select value={heightInches} onValueChange={setHeightInches}>
-                    <SelectTrigger className="bg-secondary border-border focus:border-cyan-500/50 text-foreground">
+                    <SelectTrigger className="bg-secondary border-border focus:border-primary/50 text-foreground">
                       <SelectValue placeholder="Inches" />
                     </SelectTrigger>
                     <SelectContent className="glass border-border">
@@ -377,7 +377,7 @@ export function SignupForm() {
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 placeholder="e.g. 160"
-                className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground"
+                className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground"
               />
             </div>
 
@@ -389,7 +389,7 @@ export function SignupForm() {
                 type="date"
                 value={dob}
                 onChange={(e) => setDob(e.target.value)}
-                className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground"
+                className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground"
               />
             </div>
 
@@ -397,7 +397,7 @@ export function SignupForm() {
             <div className="space-y-2">
               <Label className="text-foreground">Sex assigned at birth</Label>
               <Select value={sex} onValueChange={setSex}>
-                <SelectTrigger className="bg-secondary border-border focus:border-cyan-500/50 text-foreground">
+                <SelectTrigger className="bg-secondary border-border focus:border-primary/50 text-foreground">
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent className="glass border-border">
@@ -412,7 +412,7 @@ export function SignupForm() {
             <div className="space-y-2">
               <Label className="text-foreground">Race / Ethnicity</Label>
               <Select value={race} onValueChange={setRace}>
-                <SelectTrigger className="bg-secondary border-border focus:border-cyan-500/50 text-foreground">
+                <SelectTrigger className="bg-secondary border-border focus:border-primary/50 text-foreground">
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent className="glass border-border">
@@ -449,8 +449,8 @@ export function SignupForm() {
                     className={cn(
                       "px-3 py-1.5 text-sm rounded-full border transition-colors",
                       selectedConditions.includes(condition)
-                        ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/40"
-                        : "bg-secondary text-muted-foreground border-border hover:border-cyan-500/30 hover:text-foreground"
+                        ? "bg-primary/20 text-primary border-primary/40"
+                        : "bg-secondary text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
                     )}
                   >
                     {condition}
@@ -468,8 +468,8 @@ export function SignupForm() {
                   className={cn(
                     "px-4 py-2 text-sm rounded-full border transition-colors",
                     takingMeds === "yes"
-                      ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/40"
-                      : "bg-secondary text-muted-foreground border-border hover:border-cyan-500/30"
+                      ? "bg-primary/20 text-primary border-primary/40"
+                      : "bg-secondary text-muted-foreground border-border hover:border-primary/30"
                   )}
                 >
                   Yes
@@ -479,8 +479,8 @@ export function SignupForm() {
                   className={cn(
                     "px-4 py-2 text-sm rounded-full border transition-colors",
                     takingMeds === "no"
-                      ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/40"
-                      : "bg-secondary text-muted-foreground border-border hover:border-cyan-500/30"
+                      ? "bg-primary/20 text-primary border-primary/40"
+                      : "bg-secondary text-muted-foreground border-border hover:border-primary/30"
                   )}
                 >
                   No
@@ -491,7 +491,7 @@ export function SignupForm() {
                   value={medsText}
                   onChange={(e) => setMedsText(e.target.value)}
                   placeholder="List your current medications..."
-                  className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground placeholder:text-muted-foreground min-h-[80px]"
+                  className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground placeholder:text-muted-foreground min-h-[80px]"
                 />
               )}
             </div>
@@ -507,8 +507,8 @@ export function SignupForm() {
                     className={cn(
                       "px-3 py-1.5 text-sm rounded-full border transition-colors",
                       fitnessLevel === level
-                        ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/40"
-                        : "bg-secondary text-muted-foreground border-border hover:border-cyan-500/30 hover:text-foreground"
+                        ? "bg-primary/20 text-primary border-primary/40"
+                        : "bg-secondary text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
                     )}
                   >
                     {level}
@@ -521,7 +521,7 @@ export function SignupForm() {
             <div className="space-y-3">
               <Label className="text-foreground">
                 On average, how many days per week do you exercise?
-                <span className="ml-2 text-cyan-400 font-medium">{exerciseDays[0]}</span>
+                <span className="ml-2 text-primary font-medium">{exerciseDays[0]}</span>
               </Label>
               <Slider
                 value={exerciseDays}
@@ -548,8 +548,8 @@ export function SignupForm() {
                     className={cn(
                       "px-3 py-1.5 text-sm rounded-full border transition-colors",
                       exerciseTypes.includes(type)
-                        ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/40"
-                        : "bg-secondary text-muted-foreground border-border hover:border-cyan-500/30 hover:text-foreground"
+                        ? "bg-primary/20 text-primary border-primary/40"
+                        : "bg-secondary text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
                     )}
                   >
                     {type}
@@ -563,20 +563,20 @@ export function SignupForm() {
         {/* Step 4: Review & Submit */}
         {step === 4 && (
           <div className="space-y-6 text-center">
-            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-cyan-500/20 border border-cyan-500/30 glow-cyan">
-              <Check className="h-8 w-8 text-cyan-400" />
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-primary/20 border border-primary/30 glow-cyan">
+              <Check className="h-8 w-8 text-primary" />
             </div>
             <div>
               <h2 className="text-xl font-semibold text-foreground mb-1">
                 Ready to go, {firstName || "there"}!
               </h2>
               <p className="text-sm text-muted-foreground">
-                Review your profile and hit <strong className="text-cyan-400">Create Account</strong> to get started.
+                Review your profile and hit <strong className="text-primary">Create Account</strong> to get started.
               </p>
             </div>
 
             {/* Summary */}
-            <div className="glass rounded-xl p-5 border border-cyan-500/20 text-left space-y-3">
+            <div className="glass rounded-xl p-5 border border-primary/20 text-left space-y-3">
               <h3 className="text-sm font-semibold text-foreground">Profile Summary</h3>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {firstName && (
@@ -623,7 +623,7 @@ export function SignupForm() {
                     {selectedConditions.map((c) => (
                       <span
                         key={c}
-                        className="px-2 py-0.5 text-xs rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                        className="px-2 py-0.5 text-xs rounded-full bg-primary/20 text-primary border border-primary/30"
                       >
                         {c}
                       </span>
@@ -655,7 +655,7 @@ export function SignupForm() {
             <Button
               onClick={nextStep}
               disabled={loading}
-              className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 glow-cyan"
+              className="bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 glow-cyan"
             >
               Continue
               <ArrowRight className="h-4 w-4 ml-2" />
@@ -664,7 +664,7 @@ export function SignupForm() {
             <Button
               onClick={handleGetStarted}
               disabled={loading}
-              className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 glow-cyan"
+              className="bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 glow-cyan"
             >
               {loading ? "Creating account…" : "Create Account"}
               <ArrowRight className="h-4 w-4 ml-2" />
@@ -677,7 +677,7 @@ export function SignupForm() {
       {step === 1 && (
         <p className="mt-6 text-sm text-muted-foreground">
           Already have an account?{" "}
-          <a href="/signin" className="text-cyan-400 hover:text-cyan-300 transition-colors">
+          <a href="/signin" className="text-primary hover:text-primary transition-colors">
             Sign in
           </a>
         </p>

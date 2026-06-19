@@ -31,6 +31,12 @@ export function HomeHero() {
   const [attachedFile, setAttachedFile] = React.useState<FileAttachment | null>(null)
   const [fileError, setFileError] = React.useState<string | null>(null)
 
+  // Auto-scroll the chat to the latest message
+  const messagesEndRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+  }, [messages, loading])
+
   // Recording state
   const [isRecording, setIsRecording] = React.useState(false)
   const [isTranscribing, setIsTranscribing] = React.useState(false)
@@ -253,24 +259,19 @@ export function HomeHero() {
       </Dialog>
 
       {/* Main Content */}
-      <div className="relative min-h-[480px] w-full overflow-hidden">
-        {/* Background */}
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: `url('/images/hero-mountains.jpg')` }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/30 to-background" />
-        </div>
+      <div className="relative w-full overflow-hidden">
+        {/* Subtle background accent (no external image) */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-primary/[0.06] to-transparent" />
 
         {/* Header */}
         <div className="relative z-20">
-          <div className="flex items-center px-6 py-4">
+          <div className="flex items-center px-4 sm:px-6 py-4">
             {messages.length > 0 && (
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setSidebarOpen(true)}
-                className="text-muted-foreground hover:text-cyan-400 mr-4"
+                className="text-muted-foreground hover:text-primary mr-4"
               >
                 <Menu className="h-5 w-5" />
               </Button>
@@ -282,15 +283,15 @@ export function HomeHero() {
         </div>
 
         {/* Hero content */}
-        <div className="relative z-10 px-4 sm:px-6 pt-8 pb-8">
-          <div className="mx-auto max-w-5xl flex flex-col items-center">
+        <div className="relative z-10 px-4 sm:px-6 pt-6 pb-2">
+          <div className="mx-auto max-w-3xl flex flex-col items-center">
 
             {messages.length === 0 && (
-              <div className="text-center mb-8">
+              <div className="text-center mb-6 mt-2">
                 <h1 className="text-foreground text-3xl sm:text-4xl font-light mt-1 text-balance">
                   Your health, <span className="text-gradient-cyan">understood.</span>
                 </h1>
-                <p className="text-muted-foreground mt-3 max-w-xl text-base leading-relaxed">
+                <p className="text-muted-foreground mt-3 max-w-xl text-sm sm:text-base leading-relaxed">
                   Ask about your health, record visits, upload any lab result. Get AI-powered explanations. Track your biomarker trends over time.
                 </p>
               </div>
@@ -302,7 +303,7 @@ export function HomeHero() {
 
                 {/* Messages */}
                 {messages.length > 0 && (
-                  <div className="mb-4 space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                  <div className="mb-4 space-y-3 max-h-[58vh] overflow-y-auto pr-2 scroll-smooth">
                     {messages.map((msg) => (
                       <div
                         key={msg.id}
@@ -311,11 +312,20 @@ export function HomeHero() {
                         <div
                           className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                             msg.role === "user"
-                              ? "bg-cyan-500/10 text-foreground border border-cyan-500/20"
+                              ? "bg-primary/10 text-foreground border border-primary/20"
                               : "glass border border-border"
                           }`}
                         >
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                          {msg.image && (
+                            <img
+                              src={msg.image}
+                              alt={msg.fileName || "uploaded attachment"}
+                              className="mb-2 max-h-56 w-auto rounded-lg border border-border object-contain"
+                            />
+                          )}
+                          {msg.content && (
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                          )}
                           <p className="text-xs text-muted-foreground mt-1">
                             {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </p>
@@ -326,21 +336,22 @@ export function HomeHero() {
                       <div className="flex justify-start">
                         <div className="glass border border-border rounded-2xl px-4 py-2.5">
                           <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-                            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" style={{ animationDelay: "0.2s" }} />
-                            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" style={{ animationDelay: "0.4s" }} />
+                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{ animationDelay: "0.2s" }} />
+                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{ animationDelay: "0.4s" }} />
                           </div>
                         </div>
                       </div>
                     )}
+                    <div ref={messagesEndRef} />
                   </div>
                 )}
 
                 {/* File attachment preview */}
                 {attachedFile && (
-                  <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
-                    <Paperclip className="h-3.5 w-3.5 text-cyan-400 flex-shrink-0" />
-                    <span className="text-xs text-cyan-300 truncate flex-1">{attachedFile.name}</span>
+                  <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 border border-primary/20">
+                    <Paperclip className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+                    <span className="text-xs text-primary truncate flex-1">{attachedFile.name}</span>
                     <button onClick={clearAttachment} className="text-muted-foreground hover:text-foreground transition-colors">
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -360,14 +371,14 @@ export function HomeHero() {
                       if (e.key === "Enter" && !loading) handleSend()
                     }}
                     disabled={loading}
-                    className="h-12 pr-20 rounded-full bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground placeholder:text-muted-foreground"
+                    className="h-12 pr-20 rounded-full bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground placeholder:text-muted-foreground"
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
 
                     {/* + menu */}
                     <Dialog open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                       <DialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-cyan-400">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
                           <Plus className="h-4 w-4" />
                         </Button>
                       </DialogTrigger>
@@ -407,7 +418,7 @@ export function HomeHero() {
                                 </span>
                               )}
                               {isTranscribing && (
-                                <span className="ml-auto text-[10px] text-cyan-400 animate-pulse">AI transcribing…</span>
+                                <span className="ml-auto text-[10px] text-primary animate-pulse">AI transcribing…</span>
                               )}
                             </Button>
 
@@ -425,7 +436,7 @@ export function HomeHero() {
                                 ) : (
                                   <Button
                                     size="sm"
-                                    className="w-full bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-semibold"
+                                    className="w-full bg-primary hover:bg-primary text-black text-xs font-semibold"
                                     onClick={handleSaveVisitNote}
                                     disabled={savingVisit}
                                   >
@@ -455,7 +466,7 @@ export function HomeHero() {
                       size="icon"
                       onClick={handleSend}
                       disabled={loading || (!input.trim() && !attachedFile)}
-                      className="h-8 w-8 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 glow-cyan disabled:opacity-50"
+                      className="h-8 w-8 rounded-full bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 glow-cyan disabled:opacity-50"
                     >
                       <ArrowUp className="h-4 w-4" />
                     </Button>

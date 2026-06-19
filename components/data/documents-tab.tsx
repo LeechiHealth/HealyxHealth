@@ -37,7 +37,7 @@ function formatBytes(bytes: number | null): string {
 
 function FileIcon({ mimeType }: { mimeType: string | null }) {
   if (mimeType?.startsWith('image/')) return <Image className="h-4 w-4 text-purple-400" />
-  return <FileText className="h-4 w-4 text-cyan-400" />
+  return <FileText className="h-4 w-4 text-primary" />
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -184,7 +184,7 @@ export function DocumentsTab() {
   return (
     <div className="space-y-5">
       {/* Upload bar */}
-      <div className="glass rounded-2xl p-5 border border-cyan-500/20">
+      <div className="glass rounded-2xl p-5 border border-primary/20">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <div className="flex-1">
             <h2 className="text-sm font-semibold text-foreground mb-1">Upload a Document</h2>
@@ -203,7 +203,7 @@ export function DocumentsTab() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-2 px-4 py-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-xl hover:bg-cyan-500/30 transition-colors text-sm disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-primary/20 text-primary border border-primary/30 rounded-xl hover:bg-primary/30 transition-colors text-sm disabled:opacity-50"
             >
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               {uploading ? "Uploading…" : "Upload File"}
@@ -234,7 +234,7 @@ export function DocumentsTab() {
             className={cn(
               "px-3 py-1.5 text-xs rounded-full border whitespace-nowrap transition-colors",
               categoryFilter === cat.value
-                ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/40"
+                ? "bg-primary/20 text-primary border-primary/40"
                 : "bg-secondary text-muted-foreground border-border hover:text-foreground"
             )}
           >
@@ -249,7 +249,7 @@ export function DocumentsTab() {
       </div>
 
       {/* Documents table */}
-      <div className="glass rounded-2xl border border-cyan-500/20 overflow-hidden">
+      <div className="glass rounded-2xl border border-primary/20 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -257,8 +257,8 @@ export function DocumentsTab() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <div className="h-12 w-12 rounded-full bg-cyan-500/10 flex items-center justify-center">
-              <FolderOpen className="h-6 w-6 text-cyan-400" />
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <FolderOpen className="h-6 w-6 text-primary" />
             </div>
             <p className="text-sm text-muted-foreground">No documents yet</p>
             <p className="text-xs text-muted-foreground">Upload lab reports, scans, or medical records above</p>
@@ -287,7 +287,7 @@ export function DocumentsTab() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 text-xs rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-primary/10 text-primary border border-primary/20">
                         {CATEGORIES.find(c => c.value === doc.category)?.label || doc.category}
                       </span>
                     </td>

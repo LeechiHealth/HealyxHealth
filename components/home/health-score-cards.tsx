@@ -24,21 +24,21 @@ export function HealthScoreCards() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* Recent Labs Card */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-900/80 to-cyan-950/80 p-5 text-foreground min-h-[160px] border border-cyan-500/30 glow-cyan">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/80 to-primary/80 p-5 text-foreground min-h-[160px] border border-primary/30 glow-cyan">
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-3">
-            <FlaskConical className="h-4 w-4 text-cyan-400" />
-            <p className="text-sm font-medium text-cyan-400/80">Recent Labs</p>
+            <FlaskConical className="h-4 w-4 text-primary" />
+            <p className="text-sm font-medium text-primary/80">Recent Labs</p>
           </div>
-          <p className="text-3xl font-light text-cyan-400">
+          <p className="text-3xl font-light text-primary">
             {loading ? "..." : biomarkerCount} {biomarkerCount === 1 ? "report" : "reports"}
           </p>
-          <p className="text-xs text-cyan-300/60 mt-3">
+          <p className="text-xs text-primary/60 mt-3">
             Last uploaded {lastUploadDate}
           </p>
           <Link
             href="/data"
-            className="inline-block mt-3 text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+            className="inline-block mt-3 text-xs text-primary hover:text-primary transition-colors"
           >
             View all results
           </Link>
@@ -81,23 +81,23 @@ export function HealthScoreCards() {
         <div className="relative z-10">
           <p className="text-sm font-medium text-muted-foreground mb-3">Quick Actions</p>
           <div className="space-y-2">
-            <button onClick={() => router.push("/data")} className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg bg-secondary hover:bg-cyan-500/10 transition-colors text-left group">
-              <Upload className="h-4 w-4 text-cyan-400" />
-              <span className="text-sm text-foreground group-hover:text-cyan-400 transition-colors">Upload new lab</span>
+            <button onClick={() => router.push("/data")} className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg bg-secondary hover:bg-primary/10 transition-colors text-left group">
+              <Upload className="h-4 w-4 text-primary" />
+              <span className="text-sm text-foreground group-hover:text-primary transition-colors">Upload new lab</span>
             </button>
             <Link
               href="/home"
-              className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg bg-secondary hover:bg-cyan-500/10 transition-colors group"
+              className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg bg-secondary hover:bg-primary/10 transition-colors group"
             >
-              <MessageCircle className="h-4 w-4 text-cyan-400" />
-              <span className="text-sm text-foreground group-hover:text-cyan-400 transition-colors">Ask about your results</span>
+              <MessageCircle className="h-4 w-4 text-primary" />
+              <span className="text-sm text-foreground group-hover:text-primary transition-colors">Ask about your results</span>
             </Link>
             <Link
               href="/insights"
-              className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg bg-secondary hover:bg-cyan-500/10 transition-colors group"
+              className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg bg-secondary hover:bg-primary/10 transition-colors group"
             >
-              <FlaskConical className="h-4 w-4 text-cyan-400" />
-              <span className="text-sm text-foreground group-hover:text-cyan-400 transition-colors">Browse clinical references</span>
+              <FlaskConical className="h-4 w-4 text-primary" />
+              <span className="text-sm text-foreground group-hover:text-primary transition-colors">Browse clinical references</span>
             </Link>
           </div>
         </div>

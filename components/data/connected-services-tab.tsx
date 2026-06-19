@@ -291,7 +291,7 @@ function ImportModal({ service, onClose, onSuccess }: ImportModalProps) {
               onClick={() => inputRef.current?.click()}
               className={cn(
                 'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors',
-                dragging ? 'border-cyan-400/60 bg-cyan-500/5' : 'border-white/10 hover:border-cyan-400/30 hover:bg-white/[0.02]'
+                dragging ? 'border-primary/60 bg-primary/5' : 'border-white/10 hover:border-primary/30 hover:bg-white/[0.02]'
               )}
             >
               <input
@@ -303,7 +303,7 @@ function ImportModal({ service, onClose, onSuccess }: ImportModalProps) {
               />
               {file ? (
                 <div className="flex items-center justify-center gap-2">
-                  <FileText className="h-4 w-4 text-cyan-400" />
+                  <FileText className="h-4 w-4 text-primary" />
                   <span className="text-sm text-foreground truncate max-w-[260px]">{file.name}</span>
                   <span className="text-xs text-muted-foreground">({(file.size / 1024).toFixed(0)} KB)</span>
                 </div>
@@ -311,7 +311,7 @@ function ImportModal({ service, onClose, onSuccess }: ImportModalProps) {
                 <>
                   <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
-                    Drop your file here or <span className="text-cyan-400">browse</span>
+                    Drop your file here or <span className="text-primary">browse</span>
                   </p>
                   <p className="text-xs text-muted-foreground/50 mt-1">Accepts {service.acceptedFiles}</p>
                 </>
@@ -335,7 +335,7 @@ function ImportModal({ service, onClose, onSuccess }: ImportModalProps) {
                 <p className="text-sm font-semibold text-foreground">Import complete!</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {insertedCount.toLocaleString()} data point{insertedCount !== 1 ? 's' : ''} added to your vitals.
-                  Head to the <span className="text-cyan-400">Vitals</span> tab to see your data.
+                  Head to the <span className="text-primary">Vitals</span> tab to see your data.
                 </p>
               </div>
             </div>
@@ -347,7 +347,7 @@ function ImportModal({ service, onClose, onSuccess }: ImportModalProps) {
           {status === 'success' ? (
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 transition-colors"
             >
               Done
             </button>
@@ -365,7 +365,7 @@ function ImportModal({ service, onClose, onSuccess }: ImportModalProps) {
                 className={cn(
                   'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
                   file && status !== 'loading'
-                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30'
+                    ? 'bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30'
                     : 'bg-white/5 text-muted-foreground border border-white/10 cursor-not-allowed opacity-50'
                 )}
               >
@@ -399,10 +399,10 @@ export function ConnectedServicesTab() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="glass rounded-2xl p-5 border border-cyan-500/20">
+      <div className="glass rounded-2xl p-5 border border-primary/20">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
             </svg>
@@ -428,7 +428,7 @@ export function ConnectedServicesTab() {
               className={cn(
                 'glass rounded-2xl p-5 border flex flex-col gap-3 transition-colors',
                 isAvailable
-                  ? 'border-white/10 hover:border-cyan-500/30'
+                  ? 'border-white/10 hover:border-primary/30'
                   : 'border-white/5 opacity-60'
               )}
             >
@@ -476,7 +476,7 @@ export function ConnectedServicesTab() {
                 {isAvailable ? (
                   <button
                     onClick={() => setActiveModal(service.id)}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors"
                   >
                     <Upload className="h-3.5 w-3.5" />
                     {importRecord ? 'Import again' : 'Import data'}
@@ -494,7 +494,7 @@ export function ConnectedServicesTab() {
 
       <p className="text-center text-xs text-muted-foreground pt-2">
         Want OAuth auto-sync or a new integration?{' '}
-        <span className="text-cyan-400">Let us know</span> and we&apos;ll prioritize it.
+        <span className="text-primary">Let us know</span> and we&apos;ll prioritize it.
       </p>
 
       {/* Modal */}

@@ -141,12 +141,12 @@ export function ClinicalReferences() {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
           Clinical References
-          <span className="ml-2 text-cyan-400">{references.length}</span>
+          <span className="ml-2 text-primary">{references.length}</span>
         </h3>
         <Button
           variant="ghost"
           size="sm"
-          className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+          className="text-primary hover:text-primary hover:bg-primary/10"
         >
           <Plus className="h-4 w-4 mr-1" />
           Add Reference
@@ -157,7 +157,7 @@ export function ClinicalReferences() {
         {references.map((ref) => (
           <div
             key={ref.id}
-            className="glass rounded-2xl p-5 border border-cyan-500/20 hover:border-cyan-500/40 transition-colors group"
+            className="glass rounded-2xl p-5 border border-primary/20 hover:border-primary/40 transition-colors group"
           >
             <h4 className="font-medium text-foreground leading-snug mb-2 text-balance">
               {ref.title}
@@ -173,7 +173,7 @@ export function ClinicalReferences() {
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <Badge
                 variant="secondary"
-                className="text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                className="text-xs bg-primary/20 text-primary border border-primary/30"
               >
                 {ref.source}
               </Badge>
@@ -187,7 +187,7 @@ export function ClinicalReferences() {
                 </Badge>
               )}
               <TypeBadge type={ref.type} />
-              <button className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors ml-auto">
+              <button className="flex items-center gap-1 text-xs text-primary hover:text-primary transition-colors ml-auto">
                 <ExternalLink className="h-3 w-3" />
                 View source
               </button>

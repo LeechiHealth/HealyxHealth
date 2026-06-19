@@ -5,18 +5,18 @@ import { Heart, Zap, Activity, Shield, Pill, Flame, Apple, Droplets, Brain, Atom
 
 const categories = [
   { name: "All data", icon: CheckCircle, grade: null },
-  { name: "Longevity Markers", icon: Zap, grade: "A", color: "text-cyan-400 border-cyan-400" },
-  { name: "Heart health", icon: Heart, grade: "A", color: "text-cyan-400 border-cyan-400" },
+  { name: "Longevity Markers", icon: Zap, grade: "A", color: "text-primary border-primary" },
+  { name: "Heart health", icon: Heart, grade: "A", color: "text-primary border-primary" },
   { name: "Thyroid Health", icon: Activity, grade: "B", color: "text-yellow-400 border-yellow-400" },
   { name: "Immune Regulation", icon: Shield, grade: "B", color: "text-yellow-400 border-yellow-400" },
-  { name: "Hormone Health", icon: Pill, grade: "A", color: "text-cyan-400 border-cyan-400" },
-  { name: "Metabolic Health", icon: Flame, grade: "A", color: "text-cyan-400 border-cyan-400" },
+  { name: "Hormone Health", icon: Pill, grade: "A", color: "text-primary border-primary" },
+  { name: "Metabolic Health", icon: Flame, grade: "A", color: "text-primary border-primary" },
   { name: "Nutrients", icon: Apple, grade: "C", color: "text-amber-400 border-amber-400" },
-  { name: "Liver Health", icon: Droplets, grade: "A", color: "text-cyan-400 border-cyan-400" },
+  { name: "Liver Health", icon: Droplets, grade: "A", color: "text-primary border-primary" },
   { name: "Kidney Health", icon: Brain, grade: "B", color: "text-yellow-400 border-yellow-400" },
-  { name: "Heavy Metals & Electrolytes", icon: Atom, grade: "A", color: "text-cyan-400 border-cyan-400" },
+  { name: "Heavy Metals & Electrolytes", icon: Atom, grade: "A", color: "text-primary border-primary" },
   { name: "Inflammation", icon: Syringe, grade: "B", color: "text-yellow-400 border-yellow-400" },
-  { name: "Blood", icon: Droplets, grade: "A", color: "text-cyan-400 border-cyan-400" },
+  { name: "Blood", icon: Droplets, grade: "A", color: "text-primary border-primary" },
 ]
 
 interface DataSidebarProps {
@@ -37,7 +37,7 @@ export function DataSidebar({ selectedCategory, onCategoryChange }: DataSidebarP
               className={cn(
                 "flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-lg transition-colors text-left",
                 isActive
-                  ? "glass border border-cyan-500/30 font-medium text-foreground glow-cyan"
+                  ? "glass border border-primary/30 font-medium text-foreground glow-cyan"
                   : "hover:bg-secondary text-muted-foreground hover:text-foreground"
               )}
             >
@@ -49,7 +49,7 @@ export function DataSidebar({ selectedCategory, onCategoryChange }: DataSidebarP
                   {category.grade}
                 </span>
               ) : (
-                <category.icon className="h-5 w-5 text-cyan-400" />
+                <category.icon className="h-5 w-5 text-primary" />
               )}
               <span className="truncate">{category.name}</span>
             </button>

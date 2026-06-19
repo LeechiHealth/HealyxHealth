@@ -237,14 +237,14 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
       value={val}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground text-sm"
+      className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground text-sm"
     />
   );
 
   return (
     <div className="space-y-6">
       {/* ── Personal Information ── */}
-      <div className="glass rounded-2xl p-5 border border-cyan-500/20">
+      <div className="glass rounded-2xl p-5 border border-primary/20">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-foreground">Personal Information</h2>
           <span className="text-xs text-muted-foreground">Your profile</span>
@@ -264,7 +264,7 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
                 <select
                   value={formData.gender}
                   onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground text-sm"
+                  className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground text-sm"
                 >
                   <option value="">Select</option>
                   <option value="male">Male</option>
@@ -290,7 +290,7 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
                   type="date"
                   value={formData.dobRaw}
                   onChange={(e) => setFormData({ ...formData, dobRaw: e.target.value })}
-                  className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground text-sm"
+                  className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground text-sm"
                 />
               ) : (
                 <p className="text-foreground">{formData.dob || <span className="text-muted-foreground italic">Not set</span>}</p>
@@ -307,7 +307,7 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
 
         {isEditing && (
           <div className="mt-5 flex gap-2">
-            <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600 text-sm disabled:opacity-50">
+            <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-primary text-white rounded hover:bg-primary text-sm disabled:opacity-50">
               {saving ? "Saving…" : "Save Changes"}
             </button>
             <button onClick={() => setIsEditing(false)} className="px-4 py-2 bg-secondary text-foreground rounded hover:bg-secondary/80 text-sm">
@@ -318,10 +318,10 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
       </div>
 
       {/* ── Biometrics ── */}
-      <div className="glass rounded-2xl p-5 border border-cyan-500/20">
+      <div className="glass rounded-2xl p-5 border border-primary/20">
         <h2 className="text-sm font-semibold text-foreground mb-4">Biometrics</h2>
         <div className="grid gap-4 sm:grid-cols-4">
-          <div className="glass rounded-xl px-4 py-3 border border-cyan-500/10">
+          <div className="glass rounded-xl px-4 py-3 border border-primary/10">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Height</p>
             {isEditing ? (
               <input
@@ -329,7 +329,7 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
                 value={formData.heightInches}
                 onChange={(e) => setFormData({ ...formData, heightInches: e.target.value })}
                 placeholder="70"
-                className="w-full bg-background border border-cyan-500/20 rounded px-2 py-1 text-lg font-semibold text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-2 py-1 text-lg font-semibold text-foreground"
               />
             ) : (
               <p className="text-2xl font-semibold text-foreground">
@@ -338,7 +338,7 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
             )}
             {isEditing && <p className="text-[10px] text-muted-foreground mt-1">total inches (e.g. 70 = 5&apos;10&quot;)</p>}
           </div>
-          <div className="glass rounded-xl px-4 py-3 border border-cyan-500/10">
+          <div className="glass rounded-xl px-4 py-3 border border-primary/10">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Weight (lbs)</p>
             {isEditing ? (
               <input
@@ -346,7 +346,7 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
                 value={formData.weightLbs}
                 onChange={(e) => setFormData({ ...formData, weightLbs: e.target.value })}
                 placeholder="160"
-                className="w-full bg-background border border-cyan-500/20 rounded px-2 py-1 text-lg font-semibold text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-2 py-1 text-lg font-semibold text-foreground"
               />
             ) : (
               <p className="text-2xl font-semibold text-foreground">
@@ -354,20 +354,20 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
               </p>
             )}
           </div>
-          <div className="glass rounded-xl px-4 py-3 border border-cyan-500/10">
+          <div className="glass rounded-xl px-4 py-3 border border-primary/10">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">BMI</p>
             <p className={`text-2xl font-semibold ${bmi ? (bmi < 18.5 ? 'text-yellow-400' : bmi < 25 ? 'text-emerald-400' : bmi < 30 ? 'text-yellow-400' : 'text-red-400') : 'text-muted-foreground'}`}>
               {bmi ?? '—'}
             </p>
             {bmi && <p className="text-[10px] text-muted-foreground mt-1">{bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese'}</p>}
           </div>
-          <div className="glass rounded-xl px-4 py-3 border border-cyan-500/10">
+          <div className="glass rounded-xl px-4 py-3 border border-primary/10">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Blood Type</p>
             {isEditing ? (
               <select
                 value={formData.bloodType}
                 onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-2 py-1 text-sm font-semibold text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-2 py-1 text-sm font-semibold text-foreground"
               >
                 <option value="">Unknown</option>
                 {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(t => <option key={t} value={t}>{t}</option>)}
@@ -380,7 +380,7 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
       </div>
 
       {/* ── Insurance ── */}
-      <div className="glass rounded-2xl p-5 border border-cyan-500/20">
+      <div className="glass rounded-2xl p-5 border border-primary/20">
         <h2 className="text-sm font-semibold text-foreground mb-4">Insurance</h2>
         <div className="grid gap-4 sm:grid-cols-3 text-sm">
           <div>
@@ -404,7 +404,7 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
         </div>
         {isEditing && (
           <div className="mt-4 flex gap-2">
-            <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600 text-sm disabled:opacity-50">
+            <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-primary text-white rounded hover:bg-primary text-sm disabled:opacity-50">
               {saving ? "Saving…" : "Save Changes"}
             </button>
             <button onClick={() => setIsEditing(false)} className="px-4 py-2 bg-secondary text-foreground rounded hover:bg-secondary/80 text-sm">
@@ -414,19 +414,19 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
         )}
       </div>
 
-      <div className="glass rounded-2xl p-5 border border-cyan-500/20">
+      <div className="glass rounded-2xl p-5 border border-primary/20">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-foreground">Conditions</h2>
           <button
             onClick={openAddCondition}
-            className="text-xs text-cyan-400 hover:text-cyan-300"
+            className="text-xs text-primary hover:text-primary"
           >
             + Add Condition
           </button>
         </div>
         <div className="space-y-2">
           {conditions.map((condition) => (
-            <div key={condition.id} className="flex items-center justify-between glass rounded-lg px-3 py-2 border border-cyan-500/10">
+            <div key={condition.id} className="flex items-center justify-between glass rounded-lg px-3 py-2 border border-primary/10">
               <div className="flex-1 cursor-pointer" onClick={() => openEditCondition(condition)}>
                 <span className="text-sm text-foreground">{condition.name}</span>
                 {condition.diagnosed_date && (
@@ -451,19 +451,19 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
         </div>
       </div>
 
-      <div className="glass rounded-2xl p-5 border border-cyan-500/20">
+      <div className="glass rounded-2xl p-5 border border-primary/20">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-foreground">Medications</h2>
           <button
             onClick={openAddMedication}
-            className="text-xs text-cyan-400 hover:text-cyan-300"
+            className="text-xs text-primary hover:text-primary"
           >
             + Add Medication
           </button>
         </div>
         <div className="space-y-2">
           {medications.map((medication) => (
-            <div key={medication.id} className="flex items-center justify-between glass rounded-lg px-3 py-2 border border-cyan-500/10">
+            <div key={medication.id} className="flex items-center justify-between glass rounded-lg px-3 py-2 border border-primary/10">
               <div className="flex-1 cursor-pointer" onClick={() => openEditMedication(medication)}>
                 <span className="text-sm text-foreground">{medication.name}</span>
                 {(medication.dosage || medication.frequency) && (
@@ -562,7 +562,7 @@ function VisitNotesView() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => setExpanded(expanded === note.id ? null : note.id)}
-                  className="text-xs text-cyan-400/70 hover:text-cyan-400 transition-colors"
+                  className="text-xs text-primary/70 hover:text-primary transition-colors"
                 >
                   {expanded === note.id ? "Hide" : "View"}
                 </button>
@@ -605,7 +605,7 @@ export default function DataPage() {
           {activeTab === "healthProfile" && (
             <button
               onClick={() => setIsEditing(!isEditing)}
-              className="text-sm text-cyan-400 hover:text-cyan-300"
+              className="text-sm text-primary hover:text-primary"
             >
               {isEditing ? "Cancel" : "Edit Profile"}
             </button>
@@ -626,7 +626,7 @@ export default function DataPage() {
               >
                 {tab.label}
                 {isActive && (
-                  <span className="absolute inset-x-1 -bottom-[3px] h-[2px] rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                  <span className="absolute inset-x-1 -bottom-[3px] h-[2px] rounded-full bg-primary shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
                 )}
               </button>
             );

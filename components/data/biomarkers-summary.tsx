@@ -55,8 +55,8 @@ export function BiomarkersSummary() {
   const unclassified = total - optimal - normal - outOfRange
 
   const stats = [
-    { value: total, label: "Total", color: "bg-cyan-400" },
-    { value: optimal, label: "Optimal", color: "bg-cyan-400" },
+    { value: total, label: "Total", color: "bg-primary" },
+    { value: optimal, label: "Optimal", color: "bg-primary" },
     { value: normal + unclassified, label: "In range", color: "bg-yellow-400" },
     { value: outOfRange, label: "Out of range", color: "bg-pink-400" },
   ]
@@ -88,7 +88,7 @@ export function BiomarkersSummary() {
 
       {total > 0 && (
         <div className="flex h-2 rounded-full overflow-hidden bg-secondary">
-          <div className="bg-cyan-400 transition-all" style={{ width: `${optimalWidth}%` }} />
+          <div className="bg-primary transition-all" style={{ width: `${optimalWidth}%` }} />
           <div className="bg-yellow-400 transition-all" style={{ width: `${inRangeWidth}%` }} />
           <div className="bg-pink-400 transition-all" style={{ width: `${outWidth}%` }} />
         </div>

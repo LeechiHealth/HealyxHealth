@@ -70,11 +70,11 @@ export function VitalsDashboard() {
         </div>
       </div>
 
-      <div className="glass rounded-2xl border border-cyan-500/20 p-6">
+      <div className="glass rounded-2xl border border-primary/20 p-6">
         <div className="flex gap-6">
           <div className="w-48 flex-shrink-0">
-            <div className="glass rounded-xl p-3 border border-cyan-500/20">
-              <span className="text-[10px] font-mono text-cyan-400 block mb-3">
+            <div className="glass rounded-xl p-3 border border-primary/20">
+              <span className="text-[10px] font-mono text-primary block mb-3">
                 PATIENT INFO
               </span>
               <div className="space-y-2">
@@ -98,34 +98,34 @@ export function VitalsDashboard() {
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-3">Latest Vitals</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm mb-6">
-                <div className="glass rounded-xl px-3 py-2 border border-cyan-500/10">
+                <div className="glass rounded-xl px-3 py-2 border border-primary/10">
                   <div className="text-[11px] text-muted-foreground">Blood Pressure</div>
                   <div className="mt-1 text-lg font-semibold text-foreground">
                     {latestBP ? `${latestBP.systolic_bp}/${latestBP.diastolic_bp}` : '--/--'}
                   </div>
                 </div>
-                <div className="glass rounded-xl px-3 py-2 border border-cyan-500/10">
+                <div className="glass rounded-xl px-3 py-2 border border-primary/10">
                   <div className="text-[11px] text-muted-foreground">Heart Rate</div>
                   <div className="mt-1 text-lg font-semibold text-emerald-400">
                     {latestHR || '--'}
                     <span className="text-xs text-muted-foreground"> bpm</span>
                   </div>
                 </div>
-                <div className="glass rounded-xl px-3 py-2 border border-cyan-500/10">
+                <div className="glass rounded-xl px-3 py-2 border border-primary/10">
                   <div className="text-[11px] text-muted-foreground">SpO2</div>
                   <div className="mt-1 text-lg font-semibold text-emerald-400">
                     {latestSpO2 || '--'}
                     <span className="text-xs text-muted-foreground">%</span>
                   </div>
                 </div>
-                <div className="glass rounded-xl px-3 py-2 border border-cyan-500/10">
+                <div className="glass rounded-xl px-3 py-2 border border-primary/10">
                   <div className="text-[11px] text-muted-foreground">Temperature</div>
                   <div className="mt-1 text-lg font-semibold text-foreground">
                     {latestTemp || '--'}
                     <span className="text-xs text-muted-foreground">°C</span>
                   </div>
                 </div>
-                <div className="glass rounded-xl px-3 py-2 border border-cyan-500/10">
+                <div className="glass rounded-xl px-3 py-2 border border-primary/10">
                   <div className="text-[11px] text-muted-foreground">Weight</div>
                   <div className="mt-1 text-lg font-semibold text-foreground">
                     {latestWeight || '--'}

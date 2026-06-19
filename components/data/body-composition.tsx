@@ -314,7 +314,7 @@ function BMIScale({ bmi }: { bmi: number }) {
       </div>
       <div className="relative">
         <div className="flex h-3 rounded-full overflow-hidden">
-          <div className="bg-cyan-500 w-[18%]" />
+          <div className="bg-primary w-[18%]" />
           <div className="bg-emerald-500 w-[22%]" />
           <div className="bg-yellow-500 w-[20%]" />
           <div className="bg-orange-500 w-[20%]" />
@@ -351,7 +351,7 @@ function BodyFatChart() {
   
   return (
     <div className="space-y-2">
-      <span className="text-xs font-mono text-cyan-400">BODY FAT % TREND</span>
+      <span className="text-xs font-mono text-primary">BODY FAT % TREND</span>
       <svg viewBox="0 0 300 120" className="w-full h-24">
         <defs>
           <linearGradient id="chartFill" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -414,15 +414,15 @@ export function BodyComposition() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <span className="text-xs font-mono text-cyan-400 block">DEXA BODY COMPOSITION</span>
+          <span className="text-xs font-mono text-primary block">DEXA BODY COMPOSITION</span>
           <span className="text-xs text-muted-foreground">Last scan: Jan 15, 2026</span>
         </div>
-        <div className="flex gap-1 p-1 bg-cyan-950/30 rounded-lg border border-cyan-500/20">
+        <div className="flex gap-1 p-1 bg-primary/30 rounded-lg border border-primary/20">
           <button
             onClick={() => setView("composition")}
             className={`px-3 py-1.5 text-xs font-mono rounded transition-all ${
               view === "composition" 
-                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" 
+                ? "bg-primary/20 text-primary border border-primary/40" 
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -432,7 +432,7 @@ export function BodyComposition() {
             onClick={() => setView("skeletal")}
             className={`px-3 py-1.5 text-xs font-mono rounded transition-all ${
               view === "skeletal" 
-                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40" 
+                ? "bg-primary/20 text-primary border border-primary/40" 
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -444,13 +444,13 @@ export function BodyComposition() {
       <div className="flex-1 grid grid-cols-3 gap-4">
         {/* Left - Stats */}
         <div className="space-y-4">
-          <div className="glass rounded-xl p-4 border border-cyan-500/20">
-            <span className="text-xs font-mono text-cyan-400 block mb-3">TOTAL MASS</span>
+          <div className="glass rounded-xl p-4 border border-primary/20">
+            <span className="text-xs font-mono text-primary block mb-3">TOTAL MASS</span>
             <div className="text-3xl font-bold text-foreground">{totalWeight}<span className="text-lg text-muted-foreground ml-1">lb</span></div>
           </div>
           
-          <div className="glass rounded-xl p-4 border border-cyan-500/20">
-            <span className="text-xs font-mono text-cyan-400 block mb-3">COMPOSITION</span>
+          <div className="glass rounded-xl p-4 border border-primary/20">
+            <span className="text-xs font-mono text-primary block mb-3">COMPOSITION</span>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -461,7 +461,7 @@ export function BodyComposition() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500" />
+                  <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-primary" />
                   <span className="text-xs text-muted-foreground">Lean</span>
                 </div>
                 <span className="text-sm font-bold text-foreground">{leanMass} lb</span>
@@ -476,8 +476,8 @@ export function BodyComposition() {
             </div>
           </div>
           
-          <div className="glass rounded-xl p-4 border border-cyan-500/20">
-            <span className="text-xs font-mono text-cyan-400 block mb-3">BODY FAT</span>
+          <div className="glass rounded-xl p-4 border border-primary/20">
+            <span className="text-xs font-mono text-primary block mb-3">BODY FAT</span>
             <div className="text-3xl font-bold text-foreground">{bodyFatPercent}<span className="text-lg text-muted-foreground ml-1">%</span></div>
             <div className="mt-2 text-xs text-emerald-400">Athletic range</div>
           </div>
@@ -490,8 +490,8 @@ export function BodyComposition() {
         
         {/* Right - Charts & BMI */}
         <div className="space-y-4">
-          <div className="glass rounded-xl p-4 border border-cyan-500/20">
-            <span className="text-xs font-mono text-cyan-400 block mb-3">BMI CLASSIFICATION</span>
+          <div className="glass rounded-xl p-4 border border-primary/20">
+            <span className="text-xs font-mono text-primary block mb-3">BMI CLASSIFICATION</span>
             <div className="flex items-baseline gap-2 mb-3">
               <span className="text-3xl font-bold text-foreground">{bmi}</span>
               <span className="text-sm text-emerald-400">Normal</span>
@@ -499,12 +499,12 @@ export function BodyComposition() {
             <BMIScale bmi={bmi} />
           </div>
           
-          <div className="glass rounded-xl p-4 border border-cyan-500/20">
+          <div className="glass rounded-xl p-4 border border-primary/20">
             <BodyFatChart />
           </div>
           
-          <div className="glass rounded-xl p-4 border border-cyan-500/20">
-            <span className="text-xs font-mono text-cyan-400 block mb-3">REGIONAL ANALYSIS</span>
+          <div className="glass rounded-xl p-4 border border-primary/20">
+            <span className="text-xs font-mono text-primary block mb-3">REGIONAL ANALYSIS</span>
             <CompositionBar optimal={56} inRange={12} outOfRange={4} />
             <div className="flex justify-between mt-2 text-xs">
               <span className="text-emerald-400">78% Optimal</span>
@@ -516,7 +516,7 @@ export function BodyComposition() {
       </div>
       
       {/* Region breakdown table */}
-      <div className="mt-4 glass rounded-xl p-4 border border-cyan-500/20">
+      <div className="mt-4 glass rounded-xl p-4 border border-primary/20">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-xs text-muted-foreground font-mono">
@@ -530,10 +530,10 @@ export function BodyComposition() {
           </thead>
           <tbody>
             {bodyData.map((region) => (
-              <tr key={region.name} className="border-t border-cyan-500/10">
+              <tr key={region.name} className="border-t border-primary/10">
                 <td className="py-2 text-foreground">{region.name}</td>
                 <td className="py-2 text-right text-orange-400">{region.fat}</td>
-                <td className="py-2 text-right text-cyan-400">{region.lean}</td>
+                <td className="py-2 text-right text-primary">{region.lean}</td>
                 <td className="py-2 text-right text-gray-300">{region.bone}</td>
                 <td className="py-2 text-right text-foreground">{region.total}</td>
                 <td className="py-2 text-right text-muted-foreground">

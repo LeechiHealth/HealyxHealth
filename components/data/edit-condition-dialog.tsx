@@ -78,7 +78,7 @@ export function EditConditionDialog({ condition, onSuccess, onClose }: EditCondi
   };
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background border border-cyan-500/20 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-background border border-primary/20 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-semibold text-foreground mb-4">
           {condition ? "Edit Condition" : "Add Condition"}
         </h2>
@@ -91,7 +91,7 @@ export function EditConditionDialog({ condition, onSuccess, onClose }: EditCondi
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+              className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               placeholder="e.g., Type 2 Diabetes"
             />
           </div>
@@ -103,7 +103,7 @@ export function EditConditionDialog({ condition, onSuccess, onClose }: EditCondi
                 type="text"
                 value={formData.icd_10_code}
                 onChange={(e) => setFormData({ ...formData, icd_10_code: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
                 placeholder="e.g., E11.9"
               />
             </div>
@@ -113,7 +113,7 @@ export function EditConditionDialog({ condition, onSuccess, onClose }: EditCondi
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               >
                 <option value="active">Active</option>
                 <option value="resolved">Resolved</option>
@@ -129,7 +129,7 @@ export function EditConditionDialog({ condition, onSuccess, onClose }: EditCondi
                 type="date"
                 value={formData.diagnosed_date}
                 onChange={(e) => setFormData({ ...formData, diagnosed_date: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               />
             </div>
 
@@ -139,7 +139,7 @@ export function EditConditionDialog({ condition, onSuccess, onClose }: EditCondi
                 type="date"
                 value={formData.resolved_date}
                 onChange={(e) => setFormData({ ...formData, resolved_date: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               />
             </div>
           </div>
@@ -149,7 +149,7 @@ export function EditConditionDialog({ condition, onSuccess, onClose }: EditCondi
             <select
               value={formData.severity}
               onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-              className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+              className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
             >
               <option value="">Select severity</option>
               <option value="mild">Mild</option>
@@ -164,7 +164,7 @@ export function EditConditionDialog({ condition, onSuccess, onClose }: EditCondi
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+              className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               placeholder="Additional notes..."
             />
           </div>
@@ -172,7 +172,7 @@ export function EditConditionDialog({ condition, onSuccess, onClose }: EditCondi
           <div className="flex gap-2 pt-4">
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600"
+              className="flex-1 px-4 py-2 bg-primary text-white rounded hover:bg-primary"
             >
               {condition ? "Update" : "Add"} Condition
             </button>

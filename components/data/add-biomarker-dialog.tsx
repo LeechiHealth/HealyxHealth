@@ -182,7 +182,7 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogTrigger asChild>
-        <Button className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30">
+        <Button className="bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30">
           <Plus className="h-4 w-4 mr-2" />
           Add Lab Result
         </Button>
@@ -255,7 +255,7 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => handleClose(false)}>Cancel</Button>
-              <Button type="submit" disabled={loading} className="bg-cyan-500 text-white hover:bg-cyan-600">
+              <Button type="submit" disabled={loading} className="bg-primary text-white hover:bg-primary">
                 {loading ? "Adding…" : "Add Result"}
               </Button>
             </div>
@@ -269,10 +269,10 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
             {!fileName && (
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-cyan-500/30 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-colors"
+                className="border-2 border-dashed border-primary/30 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
               >
-                <div className="h-12 w-12 rounded-full bg-cyan-500/10 flex items-center justify-center">
-                  <Upload className="h-6 w-6 text-cyan-400" />
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Upload className="h-6 w-6 text-primary" />
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-medium text-foreground">Upload lab report</p>
@@ -291,7 +291,7 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
             {/* Extracting state */}
             {extracting && (
               <div className="flex flex-col items-center gap-3 py-6">
-                <Loader2 className="h-8 w-8 text-cyan-400 animate-spin" />
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
                 <p className="text-sm text-muted-foreground">Reading <span className="text-foreground">{fileName}</span>…</p>
                 <p className="text-xs text-muted-foreground">AI is extracting biomarkers</p>
               </div>
@@ -302,7 +302,7 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-cyan-400" />
+                    <FileText className="h-4 w-4 text-primary" />
                     <p className="text-sm font-medium text-foreground">{fileName}</p>
                   </div>
                   <p className="text-xs text-muted-foreground">{extracted.filter(b => b.selected).length} of {extracted.length} selected</p>
@@ -314,11 +314,11 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
                       onClick={() => toggleExtracted(i)}
                       className={cn(
                         "flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-colors",
-                        b.selected ? "bg-cyan-500/10 border-cyan-500/30" : "bg-secondary border-border opacity-50"
+                        b.selected ? "bg-primary/10 border-primary/30" : "bg-secondary border-border opacity-50"
                       )}
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className={cn("h-4 w-4 rounded flex items-center justify-center flex-shrink-0", b.selected ? "bg-cyan-500" : "border border-border")}>
+                        <div className={cn("h-4 w-4 rounded flex items-center justify-center flex-shrink-0", b.selected ? "bg-primary" : "border border-border")}>
                           {b.selected && <Check className="h-3 w-3 text-white" />}
                         </div>
                         <span className="text-sm text-foreground truncate">{b.name}</span>
@@ -342,7 +342,7 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
                     <Button
                       onClick={handleSaveExtracted}
                       disabled={loading || !extracted.some(b => b.selected)}
-                      className="bg-cyan-500 text-white hover:bg-cyan-600"
+                      className="bg-primary text-white hover:bg-primary"
                       size="sm"
                     >
                       {loading ? "Saving…" : `Save ${extracted.filter(b => b.selected).length} Results`}

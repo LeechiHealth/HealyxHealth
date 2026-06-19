@@ -26,7 +26,7 @@ export function ChatSidebar({ onClearChat, messageCount, messages }: ChatSidebar
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-2 px-6 py-4 border-b border-border">
-        <MessageCircle className="h-5 w-5 text-cyan-400" />
+        <MessageCircle className="h-5 w-5 text-primary" />
         <h2 className="text-lg font-semibold text-foreground">Chat</h2>
       </div>
 
@@ -35,7 +35,7 @@ export function ChatSidebar({ onClearChat, messageCount, messages }: ChatSidebar
         {/* New Chat Button */}
         <Button
           onClick={onClearChat}
-          className="w-full mb-6 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 justify-start gap-2"
+          className="w-full mb-6 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 justify-start gap-2"
         >
           <Plus className="h-4 w-4" />
           New chat

@@ -24,12 +24,12 @@ export function MedicationsList() {
         {medications.map((med) => (
           <div
             key={med.id}
-            className="glass rounded-2xl p-5 border border-cyan-500/20 hover:border-cyan-500/40 transition-colors"
+            className="glass rounded-2xl p-5 border border-primary/20 hover:border-primary/40 transition-colors"
           >
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-cyan-500/20 border border-cyan-500/30">
-                  <Pill className="h-4 w-4 text-cyan-400" />
+                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/20 border border-primary/30">
+                  <Pill className="h-4 w-4 text-primary" />
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground">1</span>
@@ -39,7 +39,7 @@ export function MedicationsList() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+                className="text-primary hover:text-primary hover:bg-primary/10"
               >
                 <MessageSquare className="h-4 w-4 mr-1" />
                 Ask

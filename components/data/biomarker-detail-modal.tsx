@@ -145,7 +145,7 @@ export function BiomarkerDetailModal({ biomarkerName, open, onClose, onUpdate }:
             <Button
               size="sm"
               onClick={() => setAddingNew(true)}
-              className="bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30"
+              className="bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30"
             >
               <Plus className="h-4 w-4 mr-1" />
               Add Result
@@ -159,7 +159,7 @@ export function BiomarkerDetailModal({ biomarkerName, open, onClose, onUpdate }:
           <div className="space-y-3">
             {/* Add New Form */}
             {addingNew && (
-              <div className="glass rounded-lg p-4 border border-cyan-500/30">
+              <div className="glass rounded-lg p-4 border border-primary/30">
                 <h3 className="text-sm font-semibold mb-3">Add New Result</h3>
                 <div className="grid grid-cols-3 gap-3">
                   <div>
@@ -188,7 +188,7 @@ export function BiomarkerDetailModal({ biomarkerName, open, onClose, onUpdate }:
                   </div>
                 </div>
                 <div className="flex gap-2 mt-3">
-                  <Button size="sm" onClick={handleAddNew} className="bg-cyan-500 hover:bg-cyan-600">
+                  <Button size="sm" onClick={handleAddNew} className="bg-primary hover:bg-primary">
                     Save
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setAddingNew(false)}>
@@ -231,7 +231,7 @@ export function BiomarkerDetailModal({ biomarkerName, open, onClose, onUpdate }:
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => saveEdit(record.id)} className="bg-cyan-500 hover:bg-cyan-600">
+                      <Button size="sm" onClick={() => saveEdit(record.id)} className="bg-primary hover:bg-primary">
                         Save
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
@@ -259,7 +259,7 @@ export function BiomarkerDetailModal({ biomarkerName, open, onClose, onUpdate }:
                         size="sm"
                         variant="ghost"
                         onClick={() => handleEdit(record)}
-                        className="text-cyan-400 hover:text-cyan-300"
+                        className="text-primary hover:text-primary"
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>

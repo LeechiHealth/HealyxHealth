@@ -49,7 +49,7 @@ const BADGE_CONFIG: Record<string, { label: string; icon: string; cls: string }>
   RCT: {
     label: "RCT",
     icon: "◉",
-    cls: "bg-cyan-500/15 text-cyan-300 border border-cyan-500/25",
+    cls: "bg-primary/15 text-primary border border-primary/25",
   },
   "Clinical Trial": {
     label: "CLINICAL TRIAL",
@@ -152,7 +152,7 @@ function ResultCard({
             href={result.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[15px] font-semibold text-foreground leading-snug hover:text-cyan-300 transition-colors line-clamp-2"
+            className="text-[15px] font-semibold text-foreground leading-snug hover:text-primary transition-colors line-clamp-2"
           >
             {result.title}
           </a>
@@ -200,7 +200,7 @@ function ResultCard({
           {hasMore && (
             <button
               onClick={() => setExpanded(!expanded)}
-              className="ml-1.5 text-[11px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+              className="ml-1.5 text-[11px] text-primary/70 hover:text-primary transition-colors"
             >
               {expanded ? "less" : "more"}
             </button>
@@ -363,12 +363,12 @@ function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search any health topic, condition, or treatment…"
             autoFocus
-            className="w-full bg-white/[0.04] border border-white/12 hover:border-white/20 focus:border-cyan-500/50 rounded-2xl pl-12 pr-28 py-4 text-[15px] text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors"
+            className="w-full bg-white/[0.04] border border-white/12 hover:border-white/20 focus:border-primary/50 rounded-2xl pl-12 pr-28 py-4 text-[15px] text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors"
           />
           <button
             type="submit"
             disabled={!q.trim()}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-30 disabled:cursor-not-allowed text-black text-[13px] font-bold px-4 py-1.5 rounded-xl transition-colors"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 bg-primary hover:bg-primary disabled:opacity-30 disabled:cursor-not-allowed text-black text-[13px] font-bold px-4 py-1.5 rounded-xl transition-colors"
           >
             Search
           </button>
@@ -571,7 +571,7 @@ export default function InsightsPage() {
             </div>
             <button
               onClick={() => { setShowLibrary(false); }}
-              className="text-[12px] font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
+              className="text-[12px] font-medium text-primary hover:text-primary transition-colors"
             >
               Search Research →
             </button>
@@ -623,12 +623,12 @@ export default function InsightsPage() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Search health topics, conditions, treatments…"
-            className="w-full bg-white/[0.03] border border-white/10 focus:border-cyan-500/40 rounded-xl pl-10 pr-24 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors"
+            className="w-full bg-white/[0.03] border border-white/10 focus:border-primary/40 rounded-xl pl-10 pr-24 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors"
           />
           <button
             type="submit"
             disabled={searching || !inputValue.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-30 text-black text-[12px] font-bold px-3 py-1 rounded-lg transition-colors"
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary hover:bg-primary disabled:opacity-30 text-black text-[12px] font-bold px-3 py-1 rounded-lg transition-colors"
           >
             {searching ? "…" : "Search"}
           </button>

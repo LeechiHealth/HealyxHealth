@@ -4,33 +4,33 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Dark futuristic theme - always dark */
-  --background: oklch(0.10 0.02 240);
-  --foreground: oklch(0.95 0.01 240);
-  --card: oklch(0.14 0.025 240);
-  --card-foreground: oklch(0.95 0.01 240);
-  --popover: oklch(0.14 0.025 240);
-  --popover-foreground: oklch(0.95 0.01 240);
-  --primary: oklch(0.72 0.15 195);
-  --primary-foreground: oklch(0.10 0.02 240);
-  --secondary: oklch(0.18 0.03 240);
-  --secondary-foreground: oklch(0.90 0.01 240);
-  --muted: oklch(0.20 0.025 240);
-  --muted-foreground: oklch(0.60 0.02 240);
-  --accent: oklch(0.72 0.15 195);
-  --accent-foreground: oklch(0.10 0.02 240);
-  --destructive: oklch(0.55 0.2 25);
+  /* Refined dark theme - warmer teal base, calmer accent */
+  --background: oklch(0.145 0.013 196);
+  --foreground: oklch(0.95 0.008 196);
+  --card: oklch(0.185 0.016 198);
+  --card-foreground: oklch(0.95 0.008 196);
+  --popover: oklch(0.185 0.016 198);
+  --popover-foreground: oklch(0.95 0.008 196);
+  --primary: oklch(0.78 0.105 184);
+  --primary-foreground: oklch(0.14 0.02 198);
+  --secondary: oklch(0.22 0.018 198);
+  --secondary-foreground: oklch(0.92 0.008 196);
+  --muted: oklch(0.24 0.016 198);
+  --muted-foreground: oklch(0.67 0.013 198);
+  --accent: oklch(0.78 0.105 184);
+  --accent-foreground: oklch(0.14 0.02 198);
+  --destructive: oklch(0.62 0.17 28);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.25 0.03 240);
-  --input: oklch(0.20 0.025 240);
-  --ring: oklch(0.72 0.15 195);
+  --border: oklch(0.30 0.016 198);
+  --input: oklch(0.24 0.016 198);
+  --ring: oklch(0.78 0.105 184);
   --radius: 0.75rem;
-  
-  /* Health-specific colors - cyan/teal focused */
-  --health-optimal: oklch(0.72 0.15 195);
-  --health-normal: oklch(0.75 0.15 95);
-  --health-warning: oklch(0.85 0.18 85);
-  --health-danger: oklch(0.7 0.2 350);
+
+  /* Health-specific colors - calm teal + warm status */
+  --health-optimal: oklch(0.78 0.105 184);
+  --health-normal: oklch(0.80 0.13 150);
+  --health-warning: oklch(0.83 0.155 80);
+  --health-danger: oklch(0.70 0.165 32);
   --health-score-gradient-start: oklch(0.55 0.15 195);
   --health-score-gradient-end: oklch(0.65 0.12 175);
   
@@ -51,8 +51,8 @@
   --sidebar-ring: oklch(0.72 0.15 195);
   
   /* Glow effects */
-  --glow-cyan: 0 0 20px oklch(0.72 0.15 195 / 0.4);
-  --glow-cyan-strong: 0 0 30px oklch(0.72 0.15 195 / 0.6);
+  --glow-cyan: 0 0 18px oklch(0.78 0.105 184 / 0.22);
+  --glow-cyan-strong: 0 0 26px oklch(0.78 0.105 184 / 0.34);
 }
 
 @theme inline {
@@ -130,13 +130,13 @@
 
 /* Glass effect */
 .glass {
-  background: oklch(0.14 0.025 240 / 0.8);
+  background: oklch(0.185 0.016 198 / 0.8);
   backdrop-filter: blur(12px);
-  border: 1px solid oklch(0.30 0.03 240 / 0.5);
+  border: 1px solid oklch(0.32 0.018 198 / 0.5);
 }
 
 .glass-darker {
-  background: oklch(0.10 0.02 240 / 0.9);
+  background: oklch(0.145 0.013 196 / 0.9);
   backdrop-filter: blur(16px);
-  border: 1px solid oklch(0.25 0.03 240 / 0.5);
+  border: 1px solid oklch(0.30 0.016 198 / 0.5);
 }

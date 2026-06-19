@@ -22,7 +22,7 @@ export function ConditionsList() {
         {conditions.map((condition) => (
           <div
             key={condition.id}
-            className="glass rounded-2xl p-5 border border-cyan-500/20 hover:border-cyan-500/40 transition-colors"
+            className="glass rounded-2xl p-5 border border-primary/20 hover:border-primary/40 transition-colors"
           >
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -37,7 +37,7 @@ export function ConditionsList() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+                className="text-primary hover:text-primary hover:bg-primary/10"
               >
                 <MessageSquare className="h-4 w-4 mr-1" />
                 Ask

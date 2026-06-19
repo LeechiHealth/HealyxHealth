@@ -91,7 +91,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background border border-cyan-500/20 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-background border border-primary/20 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-semibold text-foreground mb-4">
           {medication ? "Edit Medication" : "Add Medication"}
         </h2>
@@ -105,7 +105,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
                 placeholder="e.g., Metformin"
               />
             </div>
@@ -116,7 +116,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
                 type="text"
                 value={formData.generic_name}
                 onChange={(e) => setFormData({ ...formData, generic_name: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
                 placeholder="e.g., Metformin HCl"
               />
             </div>
@@ -129,7 +129,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
                 type="text"
                 value={formData.dosage}
                 onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
                 placeholder="e.g., 500mg"
               />
             </div>
@@ -140,7 +140,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
                 type="text"
                 value={formData.frequency}
                 onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
                 placeholder="e.g., 2x daily"
               />
             </div>
@@ -152,7 +152,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
               <select
                 value={formData.route}
                 onChange={(e) => setFormData({ ...formData, route: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               >
                 <option value="oral">Oral</option>
                 <option value="topical">Topical</option>
@@ -167,7 +167,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               >
                 <option value="active">Active</option>
                 <option value="discontinued">Discontinued</option>
@@ -183,7 +183,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
                 type="date"
                 value={formData.start_date}
                 onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               />
             </div>
 
@@ -193,7 +193,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
                 type="date"
                 value={formData.end_date}
                 onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+                className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               />
             </div>
           </div>
@@ -204,7 +204,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
               type="text"
               value={formData.prescribing_doctor}
               onChange={(e) => setFormData({ ...formData, prescribing_doctor: e.target.value })}
-              className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+              className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               placeholder="e.g., Dr. Jane Smith"
             />
           </div>
@@ -215,7 +215,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
               type="text"
               value={formData.pharmacy}
               onChange={(e) => setFormData({ ...formData, pharmacy: e.target.value })}
-              className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+              className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               placeholder="e.g., CVS Pharmacy"
             />
           </div>
@@ -226,7 +226,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full bg-background border border-cyan-500/20 rounded px-3 py-2 text-foreground"
+              className="w-full bg-background border border-primary/20 rounded px-3 py-2 text-foreground"
               placeholder="Additional notes..."
             />
           </div>
@@ -234,7 +234,7 @@ export function EditMedicationDialog({ medication, onSuccess, onClose }: EditMed
           <div className="flex gap-2 pt-4">
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600"
+              className="flex-1 px-4 py-2 bg-primary text-white rounded hover:bg-primary"
             >
               {medication ? "Update" : "Add"} Medication
             </button>

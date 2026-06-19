@@ -25,8 +25,8 @@ interface BiomarkersListProps {
 const statusConfig: Record<BiomarkerStatus, { label: string; dotColor: string; textColor: string }> = {
   optimal: {
     label: "Optimal",
-    dotColor: "bg-cyan-400",
-    textColor: "text-cyan-400",
+    dotColor: "bg-primary",
+    textColor: "text-primary",
   },
   normal: {
     label: "Normal",

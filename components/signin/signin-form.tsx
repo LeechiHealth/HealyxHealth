@@ -47,11 +47,11 @@ export function SigninForm() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
       {/* Logo */}
       <a href="/signin" className="mb-8">
-        <span className="text-2xl font-semibold tracking-tight text-cyan-400">healyx</span>
+        <span className="text-2xl font-semibold tracking-tight text-primary">healyx</span>
       </a>
 
       {/* Form Card */}
-      <div className="w-full max-w-lg glass rounded-2xl p-8 border border-cyan-500/20">
+      <div className="w-full max-w-lg glass rounded-2xl p-8 border border-primary/20">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <h2 className="text-xl font-semibold text-foreground mb-1">Sign in to your account</h2>
@@ -74,7 +74,7 @@ export function SigninForm() {
               placeholder="you@example.com"
               required
               disabled={loading}
-              className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground"
+              className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground"
             />
           </div>
 
@@ -88,14 +88,14 @@ export function SigninForm() {
               placeholder="Enter your password"
               required
               disabled={loading}
-              className="bg-secondary border-border focus:border-cyan-500/50 focus:ring-cyan-500/20 text-foreground"
+              className="bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground"
             />
           </div>
 
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 glow-cyan"
+            className="w-full bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 glow-cyan"
           >
             {loading ? "Signing in..." : "Sign In"}
             <ArrowRight className="h-4 w-4 ml-2" />
@@ -106,7 +106,7 @@ export function SigninForm() {
       {/* Sign up link */}
       <p className="mt-6 text-sm text-muted-foreground">
         Need an account?{" "}
-        <a href="/signup" className="text-cyan-400 hover:text-cyan-300 transition-colors">
+        <a href="/signup" className="text-primary hover:text-primary transition-colors">
           Sign Up
         </a>
       </p>

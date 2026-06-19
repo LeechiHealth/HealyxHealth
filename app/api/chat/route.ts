@@ -32,6 +32,7 @@ const ChatSchema = z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string().max(4000),
   })).max(20).optional(),
+  healthContext: z.string().max(12000).optional(),
 })
 
 // ── PDF text extraction (same zlib approach as labs/extract) ───────────────
@@ -107,11 +108,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
-    const { message, fileData, conversationHistory } = parsed.data
+    const { message, fileData, conversationHistory, healthContext } = parsed.data
 
     if (!message && !fileData) {
       return NextResponse.json({ error: 'Message or file required' }, { status: 400 })
     }
+
+    // Personalize: fold the user's health record into the system prompt
+    const effectiveSystemPrompt = healthContext && healthContext.trim()
+      ? `${SYSTEM_PROMPT}\n\n--- USER HEALTH RECORD ---\n${healthContext.trim()}`
+      : SYSTEM_PROMPT
 
     const isImage = fileData?.mimeType?.startsWith('image/')
     const isPdf = fileData?.mimeType === 'application/pdf'
@@ -132,7 +138,7 @@ export async function POST(request: NextRequest) {
       const completion = await groq.chat.completions.create({
         model: VISION_MODEL,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: effectiveSystemPrompt },
           ...historyMessages,
           {
             role: 'user',
@@ -168,7 +174,7 @@ export async function POST(request: NextRequest) {
     const completion = await groq.chat.completions.create({
       model: GROQ_MODEL,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: effectiveSystemPrompt },
         ...historyMessages,
         { role: 'user', content: userContent },
       ],

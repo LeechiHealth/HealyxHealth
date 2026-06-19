@@ -21,7 +21,7 @@ interface ActivityItem {
 }
 
 const TYPE_CONFIG = {
-  lab:        { icon: FlaskConical, color: "text-cyan-400",   bg: "bg-cyan-500/10 border-cyan-500/20" },
+  lab:        { icon: FlaskConical, color: "text-primary",   bg: "bg-primary/10 border-primary/20" },
   vital:      { icon: Activity,     color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
   document:   { icon: Upload,       color: "text-violet-400", bg: "bg-violet-500/10 border-violet-500/20" },
   visit_note: { icon: Mic,          color: "text-amber-400",  bg: "bg-amber-500/10 border-amber-500/20" },
@@ -141,7 +141,7 @@ export function Timeline({ showViewAllLink = true, limit = 8 }: TimelineProps) {
         )}
         {showViewAllLink && (
           <div className="mt-4 text-center py-2">
-            <Link href="/data?tab=activity" className="text-xs text-muted-foreground hover:text-cyan-400 transition-colors">
+            <Link href="/data?tab=activity" className="text-xs text-muted-foreground hover:text-primary transition-colors">
               View all activity →
             </Link>
           </div>

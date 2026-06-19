@@ -25,13 +25,13 @@ export function InsightsSidebar({ activeSection, onSectionChange }: InsightsSide
             className={cn(
               "flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-lg transition-colors text-left",
               activeSection === section.name
-                ? "glass border border-cyan-500/30 font-medium text-foreground glow-cyan"
+                ? "glass border border-primary/30 font-medium text-foreground glow-cyan"
                 : "hover:bg-secondary text-muted-foreground hover:text-foreground"
             )}
           >
             <section.icon className={cn(
               "h-5 w-5",
-              activeSection === section.name ? "text-cyan-400" : "text-muted-foreground"
+              activeSection === section.name ? "text-primary" : "text-muted-foreground"
             )} />
             <span className="truncate">{section.name}</span>
           </button>
@@ -54,7 +54,7 @@ export function InsightsSidebar({ activeSection, onSectionChange }: InsightsSide
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 px-3">Your Medications</h3>
         <div className="space-y-1">
           <button className="flex items-center gap-3 w-full px-3 py-2.5 text-sm rounded-lg transition-colors text-left hover:bg-secondary text-muted-foreground hover:text-foreground">
-            <Pill className="h-4 w-4 text-cyan-400" />
+            <Pill className="h-4 w-4 text-primary" />
             <span className="truncate">Propranolol 40mg</span>
           </button>
         </div>

@@ -11,6 +11,7 @@ const navItems = [
   { name: "Home", href: "/home" },
   { name: "Data", href: "/data" },
   { name: "Insights", href: "/insights" },
+  { name: "Protocol", href: "/protocol" },
 ]
 
 export function Header() {
@@ -28,7 +29,7 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full glass-darker">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/home" className="flex items-center gap-2">
-          <span className="text-xl font-semibold tracking-tight text-cyan-400">healyx</span>
+          <span className="text-xl font-semibold tracking-tight text-primary">healyx</span>
         </Link>
 
         {/* Desktop nav */}
@@ -41,7 +42,7 @@ export function Header() {
                 className={cn(
                   "px-4 py-2 text-sm font-medium rounded-full transition-colors",
                   pathname === item.href
-                    ? "bg-cyan-500/20 text-cyan-400 glow-cyan"
+                    ? "bg-primary/20 text-primary glow-cyan"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -55,7 +56,7 @@ export function Header() {
           <button
             type="button"
             onClick={handleSignOut}
-            className="text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-colors hidden md:block"
+            className="text-sm font-medium text-primary hover:text-primary transition-colors hidden md:block"
           >
             Sign Out
           </button>
@@ -82,7 +83,7 @@ export function Header() {
               className={cn(
                 "block px-4 py-3 text-sm font-medium rounded-xl transition-colors",
                 pathname === item.href
-                  ? "bg-cyan-500/20 text-cyan-400"
+                  ? "bg-primary/20 text-primary"
                   : "text-muted-foreground hover:text-foreground hover:bg-white/5"
               )}
             >
