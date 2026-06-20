@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import { Header } from "@/components/header";
 import { DataSidebar } from "@/components/data/data-sidebar";
 import { BiomarkersSummary } from "@/components/data/biomarkers-summary";
@@ -435,14 +436,13 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
                   </span>
                 )}
               </div>
-              {isEditing && (
-                <button
-                  onClick={() => removeCondition(condition.id)}
-                  className="text-pink-400 hover:text-pink-300 text-xs ml-2"
-                >
-                  Remove
-                </button>
-              )}
+              <button
+                onClick={() => { if (window.confirm(`Delete "${condition.name}"? This can't be undone.`)) removeCondition(condition.id) }}
+                className="text-muted-foreground hover:text-health-danger ml-2 shrink-0"
+                aria-label="Delete condition"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             </div>
           ))}
           {conditions.length === 0 && (
@@ -472,14 +472,13 @@ function HealthProfileView({ isEditing, setIsEditing }: { isEditing: boolean; se
                   </span>
                 )}
               </div>
-              {isEditing && (
-                <button
-                  onClick={() => removeMedication(medication.id)}
-                  className="text-pink-400 hover:text-pink-300 text-xs ml-2"
-                >
-                  Remove
-                </button>
-              )}
+              <button
+                onClick={() => { if (window.confirm(`Delete "${medication.name}"? This can't be undone.`)) removeMedication(medication.id) }}
+                className="text-muted-foreground hover:text-health-danger ml-2 shrink-0"
+                aria-label="Delete medication"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             </div>
           ))}
           {medications.length === 0 && (

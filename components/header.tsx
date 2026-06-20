@@ -32,7 +32,7 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full glass-darker">
+    <header className="sticky top-0 z-50 w-full glass-darker safe-top">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/home" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}

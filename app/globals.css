@@ -145,8 +145,13 @@
   }
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
   }
 }
+
+/* iOS safe-area helpers (notch / home indicator) */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
 /* Custom glow utilities */
 .glow-cyan {

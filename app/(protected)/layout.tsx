@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { useAuth } from "@/components/AuthContext"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
+import { Onboarding } from "@/components/onboarding"
 
 export default function ProtectedLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -32,5 +33,10 @@ export default function ProtectedLayout({ children }: { children: ReactNode }) {
   // Hard gate — render nothing while redirect is in flight
   if (!user) return null
 
-  return <>{children}</>
+  return (
+    <>
+      <Onboarding />
+      {children}
+    </>
+  )
 }
