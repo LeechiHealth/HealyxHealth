@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useBiomarkers } from "@/hooks/useBiomarkers"
 import { useAuth } from "@/components/AuthContext"
 import { supabase } from "@/lib/supabase/client"
-import { computeHealthScore } from "@/lib/healthScore"
+import { computeHealthScore, computePhenoAge } from "@/lib/healthScore"
 
 // Status buckets
 const ATTENTION = new Set(["high", "low", "borderline", "critical", "out-of-range"])
@@ -48,7 +48,7 @@ export function HealthSnapshot() {
     ;(async () => {
       const [vRes, pRes, iRes] = await Promise.all([
         supabase.from("vitals").select("systolic_bp, diastolic_bp, bmi, blood_glucose, recorded_at").eq("user_id", user.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("profiles").select("height_inches, weight_lbs").eq("id", user.id).maybeSingle(),
+        supabase.from("profiles").select("height_inches, weight_lbs, date_of_birth").eq("id", user.id).maybeSingle(),
         supabase.from("intake_responses").select("sleep_hours, exercise_days").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ])
       setExtra({ vitals: vRes.data, profile: pRes.data, intake: iRes.data })
@@ -56,11 +56,11 @@ export function HealthSnapshot() {
   }, [user])
 
   // Health score via the AHA Life's Essential 8 method (see lib/healthScore.ts)
-  const { score, label, attention } = React.useMemo(() => {
+  const { score, label, attention, pheno } = React.useMemo(() => {
     const bios = biomarkers || []
     const bioVal = (subs: string[]) => {
       const b = bios.find((x: any) => x.name && subs.some((s) => x.name.toLowerCase().includes(s)))
-      return b ? Number(b.value) : null
+      return b ? Number(b.value) : undefined
     }
     const v = extra.vitals || {}, p = extra.profile || {}, ik = extra.intake || {}
     const total = bioVal(["total cholesterol", "cholesterol, total"])
@@ -82,11 +82,30 @@ export function HealthSnapshot() {
       nicotine: null,
     })
 
+    // Biological age (Levine PhenoAge) — needs the 9-lab panel + chronological age
+    const ageYears = p.date_of_birth
+      ? Math.floor((Date.now() - new Date(p.date_of_birth).getTime()) / 31557600000)
+      : undefined
+    const pheno = ageYears
+      ? computePhenoAge({
+          ageYears,
+          albumin_gdl: bioVal(["albumin"]),
+          creatinine_mgdl: bioVal(["creatinine"]),
+          glucose_mgdl: (v.blood_glucose != null ? Number(v.blood_glucose) : undefined) ?? bioVal(["glucose"]),
+          crp_mgl: bioVal(["c-reactive", "crp"]),
+          lymphocyte_pct: bioVal(["lymphocyte"]),
+          mcv_fl: bioVal(["mcv", "mean corpuscular volume", "mean cell volume"]),
+          rdw_pct: bioVal(["rdw", "red cell distribution"]),
+          alp_ul: bioVal(["alkaline phosphatase", "alk phos"]),
+          wbc_k: bioVal(["wbc", "white blood cell"]),
+        })
+      : null
+
     const attention = bios
       .filter((b: any) => b.status && ATTENTION.has(b.status))
       .sort((a: any, b: any) => (SEVERITY[a.status] ?? 9) - (SEVERITY[b.status] ?? 9))
 
-    return { score, label: grade, attention }
+    return { score, label: grade, attention, pheno }
   }, [biomarkers, extra])
 
   // Ring geometry
@@ -133,6 +152,25 @@ export function HealthSnapshot() {
           </p>
         </div>
       </div>
+
+      {/* Biological age (Levine PhenoAge) */}
+      {!loading && pheno && (
+        <div className="mt-3 rounded-2xl border border-border bg-card p-4 flex items-center gap-4">
+          <div className="text-center shrink-0">
+            <p className="text-2xl font-medium text-foreground leading-none">{pheno.phenoAge}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">bio age</p>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground">Biological age</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {pheno.delta <= 0
+                ? `${Math.abs(pheno.delta)} years younger than your actual age of ${pheno.chronological}. Keep it up.`
+                : `${pheno.delta} years older than your actual age of ${pheno.chronological}.`}
+            </p>
+            <p className="text-[10px] text-muted-foreground/60 mt-1">Levine PhenoAge · from your lab panel</p>
+          </div>
+        </div>
+      )}
 
       {/* Needs attention */}
       {!loading && attention.length > 0 && (

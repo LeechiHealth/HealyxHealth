@@ -112,3 +112,59 @@ export function computeHealthScore(input: HealthInputs) {
   const weakest = present.filter(c => (c.score as number) < 60).sort((a, b) => (a.score as number) - (b.score as number))
   return { score, grade, components, present, weakest, measured: present.length, total: components.length }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PhenoAge — Levine et al. 2018 phenotypic age (biological age) clock.
+// Inputs are US CONVENTIONAL units; we convert to the SI units the published
+// coefficients require (albumin g/L, creatinine umol/L, glucose mmol/L,
+// CRP mg/dL → ln). Source: Levine et al., Aging (Albany NY) 2018;10(4):573-591.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface PhenoAgeLabs {
+  ageYears: number
+  albumin_gdl: number       // g/dL
+  creatinine_mgdl: number   // mg/dL
+  glucose_mgdl: number      // mg/dL (fasting)
+  crp_mgl: number           // mg/L (hs-CRP)
+  lymphocyte_pct: number    // %
+  mcv_fl: number            // fL
+  rdw_pct: number           // %
+  alp_ul: number            // U/L (alkaline phosphatase)
+  wbc_k: number             // 10^3 cells/uL
+}
+
+const PHENO_KEYS: (keyof PhenoAgeLabs)[] = [
+  "ageYears", "albumin_gdl", "creatinine_mgdl", "glucose_mgdl", "crp_mgl",
+  "lymphocyte_pct", "mcv_fl", "rdw_pct", "alp_ul", "wbc_k",
+]
+
+export function computePhenoAge(L: Partial<PhenoAgeLabs>): { phenoAge: number; delta: number; chronological: number } | null {
+  for (const k of PHENO_KEYS) {
+    const v = (L as any)[k]
+    if (v == null || isNaN(Number(v))) return null
+  }
+  const albumin = Number(L.albumin_gdl) * 10                          // g/dL → g/L
+  const creat = Number(L.creatinine_mgdl) * 88.4017                   // mg/dL → umol/L
+  const glucose = Number(L.glucose_mgdl) * 0.0555                     // mg/dL → mmol/L
+  const lnCRP = Math.log(Math.max(Number(L.crp_mgl) * 0.1, 0.01))     // mg/L → mg/dL, then ln (guarded)
+  const age = Number(L.ageYears)
+
+  const xb = -19.907
+    - 0.0336 * albumin
+    + 0.0095 * creat
+    + 0.1953 * glucose
+    + 0.0954 * lnCRP
+    - 0.0120 * Number(L.lymphocyte_pct)
+    + 0.0268 * Number(L.mcv_fl)
+    + 0.3306 * Number(L.rdw_pct)
+    + 0.00188 * Number(L.alp_ul)
+    + 0.0554 * Number(L.wbc_k)
+    + 0.0804 * age
+
+  const g = 0.0076927
+  const mort = 1 - Math.exp((-Math.exp(xb) * (Math.exp(120 * g) - 1)) / g)
+  const m = Math.min(Math.max(mort, 1e-9), 1 - 1e-9)
+  const phenoAge = 141.50225 + Math.log(-0.00553 * Math.log(1 - m)) / 0.090165
+  const pa = Math.round(phenoAge * 10) / 10
+  return { phenoAge: pa, delta: Math.round((pa - age) * 10) / 10, chronological: age }
+}
+

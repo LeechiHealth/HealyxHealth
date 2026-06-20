@@ -2,12 +2,13 @@
 
 import * as React from "react"
 import { Header } from "@/components/header"
+import { ProtocolIntake } from "@/components/protocol/protocol-intake"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/components/AuthContext"
 import {
   Footprints, Utensils, Pill, Moon, Wind, Ban, Activity,
   Sparkles, Check, RefreshCw, Loader2, List, LayoutGrid, CalendarDays,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, ChevronDown,
 } from "lucide-react"
 
 const CAT: Record<string, { icon: any; label: string }> = {
@@ -63,6 +64,9 @@ export default function ProtocolPage() {
   const [view, setView] = React.useState<View>("list")
   const [calMode, setCalMode] = React.useState<"month" | "week">("month")
   const [dragId, setDragId] = React.useState<string | null>(null)
+  const [intake, setIntake] = React.useState<any>(null)
+  const [intakeOpen, setIntakeOpen] = React.useState(false)
+  const [basedOnOpen, setBasedOnOpen] = React.useState(false)
 
   const week = React.useMemo(() => currentWeek(), [])
   const monthGrid = React.useMemo(() => buildMonthGrid(new Date()), [])
@@ -79,6 +83,10 @@ export default function ProtocolPage() {
 
     const active = protos?.[0] || null
     setProtocol(active)
+
+    const { data: ik } = await supabase.from("intake_responses").select("*")
+      .eq("user_id", user.id).eq("completed", true).order("completed_at", { ascending: false }).limit(1).maybeSingle()
+    setIntake(ik || null)
 
     if (active) {
       const [{ data: t }, { data: comps }] = await Promise.all([
@@ -124,6 +132,21 @@ export default function ProtocolPage() {
       const flagged = bios.filter(b => b.status && !["optimal", "normal"].includes(b.status))
       const show = (flagged.length ? flagged : bios).slice(0, 24)
       lines.push("Lab results: " + show.map(b => `${b.name} ${b.value}${b.unit ? ` ${b.unit}` : ""}${b.status ? ` [${b.status}]` : ""}`).join("; ") + ".")
+    }
+    // Their questionnaire answers (freshly fetched so generation always reflects the latest)
+    const { data: ik } = await supabase.from("intake_responses").select("*")
+      .eq("user_id", user.id).eq("completed", true).order("completed_at", { ascending: false }).limit(1).maybeSingle()
+    if (ik) {
+      const ip: string[] = []
+      if (ik.primary_goal) ip.push(`main goal is ${ik.primary_goal}`)
+      if (ik.chief_complaint) ip.push(`top concern: "${ik.chief_complaint}"`)
+      if (ik.sleep_hours != null) ip.push(`sleeps ${ik.sleep_hours} h/night`)
+      if (ik.exercise_days != null) ip.push(`exercises ${ik.exercise_days} days/week`)
+      if (ik.stress_level != null) ip.push(`stress ${ik.stress_level}/10`)
+      if (ik.diet_description) ip.push(`diet: ${ik.diet_description}`)
+      if (ik.nicotine) ip.push(`nicotine: ${ik.nicotine}`)
+      if (ik.supplement_willingness) ip.push(`supplement openness: ${ik.supplement_willingness}`)
+      if (ip.length) lines.push("From their questionnaire — " + ip.join("; ") + ".")
     }
     return lines.join("\n")
   }
@@ -214,7 +237,7 @@ export default function ProtocolPage() {
             <p className="text-sm text-muted-foreground mt-0.5">A few specific, evidence-based actions built from your data.</p>
           </div>
           {protocol && (
-            <button onClick={generate} disabled={generating}
+            <button onClick={() => setIntakeOpen(true)} disabled={generating}
               className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50">
               {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               Regenerate
@@ -237,12 +260,12 @@ export default function ProtocolPage() {
             <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
               Healyx reads your profile, conditions, medications, and labs, then gives you a short, prioritized plan — and tracks whether it&apos;s working.
             </p>
-            <button onClick={generate} disabled={generating}
+            <button onClick={() => setIntakeOpen(true)} disabled={generating}
               className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50">
-              {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><Sparkles className="h-4 w-4" /> Generate my protocol</>}
+              {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Building…</> : <><Sparkles className="h-4 w-4" /> Start your questionnaire</>}
             </button>
             <p className="mt-4 text-[11px] text-muted-foreground/70 max-w-sm mx-auto">
-              Educational wellness guidance, not medical advice. Always consult a doctor before starting anything new.
+              A 1-minute questionnaire plus your labs builds the plan. Educational wellness guidance, not medical advice.
             </p>
           </div>
         ) : (
@@ -261,6 +284,52 @@ export default function ProtocolPage() {
                   <p className="text-sm text-foreground/90 leading-relaxed">{protocol.plain_summary || "Your personalized protocol is ready."}</p>
                 </div>
               </div>
+            </div>
+
+            {/* What this is based on */}
+            <div className="rounded-xl border border-border bg-card mb-4 overflow-hidden">
+              <button onClick={() => setBasedOnOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3">
+                <span className="text-sm font-medium text-foreground">What this is based on</span>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${basedOnOpen ? "rotate-180" : ""}`} />
+              </button>
+              {basedOnOpen && (
+                <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+                  {Array.isArray(protocol.issues_ranked) && protocol.issues_ranked.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1.5">Priorities we found</p>
+                      <ul className="space-y-1">
+                        {protocol.issues_ranked.map((it: any, i: number) => (
+                          <li key={i} className="text-xs text-foreground/90">
+                            <span className="font-medium capitalize">{it.issue}</span>
+                            {it.severity && <span className="text-muted-foreground"> · {it.severity}</span>}
+                            {it.why && <span className="text-muted-foreground"> — {it.why}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {intake ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Your questionnaire</p>
+                        <button onClick={() => setIntakeOpen(true)} className="text-xs text-primary hover:opacity-80">Update</button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {intake.primary_goal && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">Goal: {intake.primary_goal}</span>}
+                        {intake.sleep_hours != null && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">Sleep: {intake.sleep_hours}h</span>}
+                        {intake.exercise_days != null && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">Exercise: {intake.exercise_days}d/wk</span>}
+                        {intake.stress_level != null && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">Stress: {intake.stress_level}/10</span>}
+                        {intake.diet_description && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">{intake.diet_description}</span>}
+                        {intake.nicotine && <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">Nicotine: {intake.nicotine}</span>}
+                      </div>
+                      {intake.chief_complaint && <p className="text-xs text-muted-foreground mt-2">&ldquo;{intake.chief_complaint}&rdquo;</p>}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No questionnaire on file. <button onClick={() => setIntakeOpen(true)} className="text-primary hover:opacity-80">Fill it out</button> for a more tailored plan.</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground/60">Built from your questionnaire, conditions, medications, and recent labs.</p>
+                </div>
+              )}
             </div>
 
             {/* View toggle */}
@@ -449,6 +518,14 @@ export default function ProtocolPage() {
           </>
         )}
       </div>
+
+      {intakeOpen && (
+        <ProtocolIntake
+          existing={intake}
+          onClose={() => setIntakeOpen(false)}
+          onSaved={async () => { setIntakeOpen(false); await load(); await generate() }}
+        />
+      )}
     </div>
   )
 }

@@ -46,7 +46,11 @@ export function SigninForm() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-12">
       {/* Logo */}
-      <a href="/signin" className="mb-8">
+      <a href="/signin" className="mb-8 flex flex-col items-center gap-3">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/healyx-logo-white.png" alt="Healyx" className="h-16 w-16 hidden dark:block" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/healyx-logo-blue.png" alt="Healyx" className="h-16 w-16 block dark:hidden" />
         <span className="text-2xl font-semibold tracking-tight text-primary">healyx</span>
       </a>
 
