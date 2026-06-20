@@ -4,55 +4,92 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Refined dark theme - warmer teal base, calmer accent */
-  --background: oklch(0.145 0.013 196);
-  --foreground: oklch(0.95 0.008 196);
-  --card: oklch(0.185 0.016 198);
-  --card-foreground: oklch(0.95 0.008 196);
-  --popover: oklch(0.185 0.016 198);
-  --popover-foreground: oklch(0.95 0.008 196);
-  --primary: oklch(0.78 0.105 184);
-  --primary-foreground: oklch(0.14 0.02 198);
-  --secondary: oklch(0.22 0.018 198);
-  --secondary-foreground: oklch(0.92 0.008 196);
-  --muted: oklch(0.24 0.016 198);
-  --muted-foreground: oklch(0.67 0.013 198);
-  --accent: oklch(0.78 0.105 184);
-  --accent-foreground: oklch(0.14 0.02 198);
-  --destructive: oklch(0.62 0.17 28);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.30 0.016 198);
-  --input: oklch(0.24 0.016 198);
-  --ring: oklch(0.78 0.105 184);
+  /* LIGHT theme — Azure accent on cool white. Shared (non-color) vars live here too. */
+  --background: oklch(0.985 0.004 255);
+  --foreground: oklch(0.23 0.03 262);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.23 0.03 262);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.23 0.03 262);
+  --primary: oklch(0.55 0.17 255);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.96 0.008 255);
+  --secondary-foreground: oklch(0.30 0.03 262);
+  --muted: oklch(0.955 0.008 255);
+  --muted-foreground: oklch(0.50 0.03 262);
+  --accent: oklch(0.55 0.17 255);
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.58 0.20 28);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: oklch(0.90 0.01 255);
+  --input: oklch(0.93 0.01 255);
+  --ring: oklch(0.55 0.17 255);
   --radius: 0.75rem;
 
-  /* Health-specific colors - calm teal + warm status */
-  --health-optimal: oklch(0.78 0.105 184);
+  --health-optimal: oklch(0.55 0.16 255);
+  --health-normal: oklch(0.55 0.14 150);
+  --health-warning: oklch(0.68 0.15 70);
+  --health-danger: oklch(0.57 0.19 28);
+  --health-score-gradient-start: oklch(0.55 0.17 255);
+  --health-score-gradient-end: oklch(0.60 0.14 230);
+
+  --chart-1: oklch(0.55 0.17 255);
+  --chart-2: oklch(0.68 0.15 70);
+  --chart-3: oklch(0.58 0.19 28);
+  --chart-4: oklch(0.55 0.14 150);
+  --chart-5: oklch(0.60 0.14 290);
+
+  --sidebar: oklch(0.97 0.006 255);
+  --sidebar-foreground: oklch(0.23 0.03 262);
+  --sidebar-primary: oklch(0.55 0.17 255);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.95 0.008 255);
+  --sidebar-accent-foreground: oklch(0.30 0.03 262);
+  --sidebar-border: oklch(0.90 0.01 255);
+  --sidebar-ring: oklch(0.55 0.17 255);
+
+  --glow-cyan: 0 2px 10px oklch(0.55 0.17 255 / 0.16);
+  --glow-cyan-strong: 0 4px 16px oklch(0.55 0.17 255 / 0.22);
+}
+
+.dark {
+  /* DARK theme — Azure accent on deep navy. Only color vars are overridden. */
+  --background: oklch(0.165 0.028 262);
+  --foreground: oklch(0.95 0.012 262);
+  --card: oklch(0.215 0.030 262);
+  --card-foreground: oklch(0.95 0.012 262);
+  --popover: oklch(0.215 0.030 262);
+  --popover-foreground: oklch(0.95 0.012 262);
+  --primary: oklch(0.68 0.150 255);
+  --primary-foreground: oklch(0.16 0.03 262);
+  --secondary: oklch(0.26 0.030 262);
+  --secondary-foreground: oklch(0.93 0.012 262);
+  --muted: oklch(0.27 0.028 262);
+  --muted-foreground: oklch(0.72 0.030 262);
+  --accent: oklch(0.68 0.150 255);
+  --accent-foreground: oklch(0.16 0.03 262);
+  --destructive: oklch(0.64 0.18 28);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.33 0.030 262);
+  --input: oklch(0.27 0.028 262);
+  --ring: oklch(0.68 0.150 255);
+
+  --health-optimal: oklch(0.68 0.150 255);
   --health-normal: oklch(0.80 0.13 150);
   --health-warning: oklch(0.83 0.155 80);
   --health-danger: oklch(0.70 0.165 32);
-  --health-score-gradient-start: oklch(0.55 0.15 195);
-  --health-score-gradient-end: oklch(0.65 0.12 175);
-  
-  /* Chart colors */
-  --chart-1: oklch(0.72 0.15 195);
-  --chart-2: oklch(0.85 0.18 85);
-  --chart-3: oklch(0.7 0.2 350);
-  --chart-4: oklch(0.65 0.15 270);
-  --chart-5: oklch(0.75 0.12 200);
-  
-  --sidebar: oklch(0.12 0.025 240);
-  --sidebar-foreground: oklch(0.95 0.01 240);
-  --sidebar-primary: oklch(0.72 0.15 195);
-  --sidebar-primary-foreground: oklch(0.10 0.02 240);
-  --sidebar-accent: oklch(0.18 0.03 240);
-  --sidebar-accent-foreground: oklch(0.90 0.01 240);
-  --sidebar-border: oklch(0.25 0.03 240);
-  --sidebar-ring: oklch(0.72 0.15 195);
-  
-  /* Glow effects */
-  --glow-cyan: 0 0 18px oklch(0.78 0.105 184 / 0.22);
-  --glow-cyan-strong: 0 0 26px oklch(0.78 0.105 184 / 0.34);
+
+  --sidebar: oklch(0.185 0.028 262);
+  --sidebar-foreground: oklch(0.95 0.012 262);
+  --sidebar-primary: oklch(0.68 0.150 255);
+  --sidebar-primary-foreground: oklch(0.16 0.03 262);
+  --sidebar-accent: oklch(0.26 0.030 262);
+  --sidebar-accent-foreground: oklch(0.93 0.012 262);
+  --sidebar-border: oklch(0.33 0.030 262);
+  --sidebar-ring: oklch(0.68 0.150 255);
+
+  --glow-cyan: 0 0 18px oklch(0.68 0.150 255 / 0.22);
+  --glow-cyan-strong: 0 0 26px oklch(0.68 0.150 255 / 0.34);
 }
 
 @theme inline {
@@ -120,23 +157,23 @@
   box-shadow: var(--glow-cyan-strong);
 }
 
-/* Gradient text utility */
+/* Gradient text utility (auto-adapts via tokens) */
 .text-gradient-cyan {
-  background: linear-gradient(135deg, oklch(0.72 0.15 195), oklch(0.65 0.12 175));
+  background: linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary), white 22%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
-/* Glass effect */
+/* Glass effects — token-based so they flip with light/dark */
 .glass {
-  background: oklch(0.185 0.016 198 / 0.8);
+  background: color-mix(in oklch, var(--card) 82%, transparent);
   backdrop-filter: blur(12px);
-  border: 1px solid oklch(0.32 0.018 198 / 0.5);
+  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
 }
 
 .glass-darker {
-  background: oklch(0.145 0.013 196 / 0.9);
+  background: color-mix(in oklch, var(--background) 88%, transparent);
   backdrop-filter: blur(16px);
-  border: 1px solid oklch(0.30 0.016 198 / 0.5);
+  border: 1px solid color-mix(in oklch, var(--border) 55%, transparent);
 }

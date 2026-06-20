@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Your personal health operating system — understand your data and act on it.",
     start_url: "/home",
     display: "standalone",
-    background_color: "#0C1519",
-    theme_color: "#0C1519",
+    background_color: "#0A1020",
+    theme_color: "#0A1020",
     orientation: "portrait",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },

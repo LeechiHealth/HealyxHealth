@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/AuthContext"
-import { Menu, X } from "lucide-react"
+import { Menu, X, Sun, Moon } from "lucide-react"
 
 const navItems = [
   { name: "Home", href: "/home" },
@@ -18,7 +19,12 @@ export function Header() {
   const pathname = usePathname()
   const router = useRouter()
   const { signOut } = useAuth()
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => setMounted(true), [])
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark")
 
   async function handleSignOut() {
     await signOut()
@@ -53,6 +59,15 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label="Toggle light or dark mode"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {mounted && (theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />)}
+          </button>
+
           <button
             type="button"
             onClick={handleSignOut}
