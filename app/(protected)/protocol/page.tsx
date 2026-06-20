@@ -26,21 +26,30 @@ const KANBAN = [
   { key: "done", label: "Done" },
 ] as const
 
-const fmt = (d: Date) => d.toISOString().slice(0, 10)
+const fmt = (d: Date) => {
+  const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+  return z.toISOString().slice(0, 10)
+}
 const todayStr = () => fmt(new Date())
+
 function currentWeek(): Date[] {
   const now = new Date()
   const start = new Date(now)
-  start.setDate(now.getDate() - now.getDay()) // Sunday
+  start.setDate(now.getDate() - now.getDay())
   start.setHours(0, 0, 0, 0)
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(start)
-    d.setDate(start.getDate() + i)
-    return d
-  })
+  return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d })
 }
+function buildMonthGrid(ref: Date) {
+  const y = ref.getFullYear(), m = ref.getMonth()
+  const startDow = new Date(y, m, 1).getDay()
+  const start = new Date(y, m, 1 - startDow)
+  const days = Array.from({ length: 42 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return d })
+  return { days, month: m }
+}
+const windowStart = () => { const d = new Date(); d.setDate(d.getDate() - 38); return fmt(d) }
+const windowEnd = () => { const d = new Date(); d.setDate(d.getDate() + 8); return fmt(d) }
 
-type View = "list" | "board" | "week"
+type View = "list" | "board" | "calendar"
 
 export default function ProtocolPage() {
   const { user } = useAuth()
@@ -50,11 +59,13 @@ export default function ProtocolPage() {
   const [protocol, setProtocol] = React.useState<any>(null)
   const [tasks, setTasks] = React.useState<any[]>([])
   const [doneToday, setDoneToday] = React.useState<Set<string>>(new Set())
-  const [weekDone, setWeekDone] = React.useState<Set<string>>(new Set()) // `${taskId}|${date}`
+  const [done, setDone] = React.useState<Set<string>>(new Set()) // `${taskId}|${date}`
   const [view, setView] = React.useState<View>("list")
+  const [calMode, setCalMode] = React.useState<"month" | "week">("month")
   const [dragId, setDragId] = React.useState<string | null>(null)
 
   const week = React.useMemo(() => currentWeek(), [])
+  const monthGrid = React.useMemo(() => buildMonthGrid(new Date()), [])
 
   React.useEffect(() => { if (user) load() }, [user])
 
@@ -74,20 +85,14 @@ export default function ProtocolPage() {
         supabase.from("protocol_tasks").select("*").eq("protocol_id", active.id)
           .order("priority", { ascending: true }).order("sort_order", { ascending: true }),
         supabase.from("task_completions").select("task_id, completed_date")
-          .eq("user_id", user.id).gte("completed_date", fmt(week[0])).lte("completed_date", fmt(week[6])),
+          .eq("user_id", user.id).gte("completed_date", windowStart()).lte("completed_date", windowEnd()),
       ])
       setTasks(t || [])
-      const wd = new Set<string>()
-      const td = new Set<string>()
-      const today = todayStr()
-      for (const c of comps || []) {
-        wd.add(`${c.task_id}|${c.completed_date}`)
-        if (c.completed_date === today) td.add(c.task_id)
-      }
-      setWeekDone(wd)
-      setDoneToday(td)
+      const dn = new Set<string>(); const td = new Set<string>(); const today = todayStr()
+      for (const c of comps || []) { dn.add(`${c.task_id}|${c.completed_date}`); if (c.completed_date === today) td.add(c.task_id) }
+      setDone(dn); setDoneToday(td)
     } else {
-      setTasks([]); setDoneToday(new Set()); setWeekDone(new Set())
+      setTasks([]); setDoneToday(new Set()); setDone(new Set())
     }
     setLoading(false)
   }
@@ -168,25 +173,22 @@ export default function ProtocolPage() {
     }
   }
 
-  // Toggle completion for a specific date (used by list = today, and week view)
   async function toggleDay(task: any, dateStr: string) {
     if (!user) return
     const key = `${task.id}|${dateStr}`
-    const has = weekDone.has(key) || (dateStr === todayStr() && doneToday.has(task.id))
-    const wd = new Set(weekDone); const td = new Set(doneToday)
+    const has = done.has(key)
+    const dn = new Set(done); const td = new Set(doneToday)
     if (has) {
-      wd.delete(key); if (dateStr === todayStr()) td.delete(task.id)
-      setWeekDone(wd); setDoneToday(td)
-      await supabase.from("task_completions").delete()
-        .eq("user_id", user.id).eq("task_id", task.id).eq("completed_date", dateStr)
+      dn.delete(key); if (dateStr === todayStr()) td.delete(task.id)
+      setDone(dn); setDoneToday(td)
+      await supabase.from("task_completions").delete().eq("user_id", user.id).eq("task_id", task.id).eq("completed_date", dateStr)
     } else {
-      wd.add(key); if (dateStr === todayStr()) td.add(task.id)
-      setWeekDone(wd); setDoneToday(td)
+      dn.add(key); if (dateStr === todayStr()) td.add(task.id)
+      setDone(dn); setDoneToday(td)
       await supabase.from("task_completions").insert({ user_id: user.id, task_id: task.id, completed_date: dateStr })
     }
   }
 
-  // Move a task between kanban columns
   async function moveTask(taskId: string, status: string) {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, kanban_status: status } : t))
     await supabase.from("protocol_tasks").update({ kanban_status: status }).eq("id", taskId)
@@ -198,7 +200,7 @@ export default function ProtocolPage() {
   const VIEWS: { key: View; label: string; icon: any }[] = [
     { key: "list", label: "List", icon: List },
     { key: "board", label: "Board", icon: LayoutGrid },
-    { key: "week", label: "Week", icon: CalendarDays },
+    { key: "calendar", label: "Calendar", icon: CalendarDays },
   ]
 
   return (
@@ -245,7 +247,6 @@ export default function ProtocolPage() {
           </div>
         ) : (
           <>
-            {/* Summary + score */}
             <div className="rounded-2xl border border-health-optimal/20 bg-health-optimal/[0.06] p-5 mb-4">
               <div className="flex items-start gap-4">
                 <div className="text-center shrink-0">
@@ -276,9 +277,7 @@ export default function ProtocolPage() {
                   )
                 })}
               </div>
-              {view === "list" && (
-                <p className="text-xs text-muted-foreground">{completedCount}/{tasks.length} done today · {pct}%</p>
-              )}
+              {view === "list" && <p className="text-xs text-muted-foreground">{completedCount}/{tasks.length} done today · {pct}%</p>}
             </div>
 
             {/* ───────── LIST ───────── */}
@@ -289,20 +288,20 @@ export default function ProtocolPage() {
                 </div>
                 <div className="space-y-2.5">
                   {tasks.map((t) => {
-                    const done = doneToday.has(t.id)
+                    const isDone = doneToday.has(t.id)
                     const cfg = CAT[t.category] || CAT.tracking
                     const Icon = cfg.icon
                     return (
                       <div key={t.id}
-                        className={`rounded-xl border p-3.5 transition-colors ${done ? "border-health-optimal/30 bg-health-optimal/[0.05]" : "border-border bg-card"}`}>
+                        className={`rounded-xl border p-3.5 transition-colors ${isDone ? "border-health-optimal/30 bg-health-optimal/[0.05]" : "border-border bg-card"}`}>
                         <div className="flex items-start gap-3">
-                          <button onClick={() => toggleDay(t, todayStr())} aria-label={done ? "Mark not done" : "Mark done"}
-                            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${done ? "bg-health-optimal border-health-optimal text-background" : "border-border hover:border-primary"}`}>
-                            {done && <Check className="h-3.5 w-3.5" />}
+                          <button onClick={() => toggleDay(t, todayStr())} aria-label={isDone ? "Mark not done" : "Mark done"}
+                            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${isDone ? "bg-health-optimal border-health-optimal text-background" : "border-border hover:border-primary"}`}>
+                            {isDone && <Check className="h-3.5 w-3.5" />}
                           </button>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-sm font-medium ${done ? "text-muted-foreground line-through" : "text-foreground"}`}>{t.task_name}</span>
+                              <span className={`text-sm font-medium ${isDone ? "text-muted-foreground line-through" : "text-foreground"}`}>{t.task_name}</span>
                               <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
                                 <Icon className="h-3 w-3" />{cfg.label}
                               </span>
@@ -343,31 +342,21 @@ export default function ProtocolPage() {
                           const Icon = cfg.icon
                           return (
                             <div key={t.id} draggable
-                              onDragStart={() => setDragId(t.id)}
-                              onDragEnd={() => setDragId(null)}
+                              onDragStart={() => setDragId(t.id)} onDragEnd={() => setDragId(null)}
                               className="rounded-lg border border-border bg-card p-2.5 cursor-grab active:cursor-grabbing">
                               <div className="flex items-start gap-1.5">
                                 <Icon className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
                                 <span className="text-xs font-medium text-foreground leading-snug">{t.task_name}</span>
                               </div>
                               {t.frequency && <p className="text-[10px] text-muted-foreground mt-1 ml-5">{t.frequency}</p>}
-                              {/* mobile-friendly move controls */}
                               <div className="flex items-center justify-end gap-1 mt-1.5">
-                                {ci > 0 && (
-                                  <button onClick={() => moveTask(t.id, KANBAN[ci - 1].key)} aria-label="Move left"
-                                    className="text-muted-foreground hover:text-primary"><ChevronLeft className="h-3.5 w-3.5" /></button>
-                                )}
-                                {ci < KANBAN.length - 1 && (
-                                  <button onClick={() => moveTask(t.id, KANBAN[ci + 1].key)} aria-label="Move right"
-                                    className="text-muted-foreground hover:text-primary"><ChevronRight className="h-3.5 w-3.5" /></button>
-                                )}
+                                {ci > 0 && <button onClick={() => moveTask(t.id, KANBAN[ci - 1].key)} aria-label="Move left" className="text-muted-foreground hover:text-primary"><ChevronLeft className="h-3.5 w-3.5" /></button>}
+                                {ci < KANBAN.length - 1 && <button onClick={() => moveTask(t.id, KANBAN[ci + 1].key)} aria-label="Move right" className="text-muted-foreground hover:text-primary"><ChevronRight className="h-3.5 w-3.5" /></button>}
                               </div>
                             </div>
                           )
                         })}
-                        {colTasks.length === 0 && (
-                          <p className="text-[10px] text-muted-foreground/50 text-center py-3">Drop tasks here</p>
-                        )}
+                        {colTasks.length === 0 && <p className="text-[10px] text-muted-foreground/50 text-center py-3">Drop tasks here</p>}
                       </div>
                     </div>
                   )
@@ -375,45 +364,83 @@ export default function ProtocolPage() {
               </div>
             )}
 
-            {/* ───────── WEEK (calendar) ───────── */}
-            {view === "week" && (
-              <div className="space-y-2.5">
-                {week.map((d) => {
-                  const ds = fmt(d)
-                  const isToday = ds === todayStr()
-                  const isFuture = d.getTime() > new Date().setHours(23, 59, 59, 999)
-                  const dayName = d.toLocaleDateString("en-US", { weekday: "short" })
-                  const dayNum = d.getDate()
-                  const doneCount = tasks.filter(t => weekDone.has(`${t.id}|${ds}`)).length
-                  return (
-                    <div key={ds}
-                      className={`rounded-xl border p-3.5 ${isToday ? "border-primary/40 bg-primary/[0.06]" : "border-border bg-card"}`}>
-                      <div className="flex items-center justify-between mb-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-medium ${isToday ? "text-primary" : "text-foreground"}`}>{dayName} {dayNum}</span>
-                          {isToday && <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] text-primary">Today</span>}
-                        </div>
-                        <span className="text-[10px] text-muted-foreground">{doneCount}/{tasks.length}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {tasks.map(t => {
-                          const done = weekDone.has(`${t.id}|${ds}`)
-                          const cfg = CAT[t.category] || CAT.tracking
-                          const Icon = cfg.icon
-                          return (
-                            <button key={t.id} onClick={() => !isFuture && toggleDay(t, ds)} disabled={isFuture}
-                              title={t.task_name}
-                              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors disabled:opacity-40 ${done ? "border-health-optimal/40 bg-health-optimal/15 text-health-optimal" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-                              {done ? <Check className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
-                              <span className="max-w-[140px] truncate">{t.task_name}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
+            {/* ───────── CALENDAR ───────── */}
+            {view === "calendar" && (
+              <>
+                <div className="inline-flex rounded-full border border-border bg-card p-1 mb-4">
+                  {(["month", "week"] as const).map(m => (
+                    <button key={m} onClick={() => setCalMode(m)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium capitalize transition-colors ${calMode === m ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"}`}>{m}</button>
+                  ))}
+                </div>
+
+                {calMode === "month" ? (
+                  <div>
+                    <p className="text-sm font-medium text-foreground mb-3 text-center">
+                      {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                    </p>
+                    <div className="grid grid-cols-7 gap-1 mb-1">
+                      {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+                        <div key={i} className="text-center text-[10px] text-muted-foreground py-1">{d}</div>
+                      ))}
                     </div>
-                  )
-                })}
-              </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {monthGrid.days.map((d) => {
+                        const ds = fmt(d)
+                        const inMonth = d.getMonth() === monthGrid.month
+                        const isToday = ds === todayStr()
+                        const dc = tasks.filter(t => done.has(`${t.id}|${ds}`)).length
+                        const ratio = tasks.length ? dc / tasks.length : 0
+                        return (
+                          <div key={ds}
+                            className={`aspect-square rounded-lg flex flex-col items-center justify-center ${isToday ? "border border-primary" : "border border-transparent"} ${inMonth ? "" : "opacity-30"}`}
+                            style={{ background: ratio > 0 ? `color-mix(in oklch, var(--health-optimal) ${Math.round(ratio * 65)}%, transparent)` : "transparent" }}>
+                            <span className={`text-xs ${inMonth ? "text-foreground" : "text-muted-foreground"}`}>{d.getDate()}</span>
+                            {dc > 0 && <span className="text-[8px] text-health-optimal leading-none mt-0.5">{dc}/{tasks.length}</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <p className="mt-3 text-[11px] text-muted-foreground/70 text-center">Shaded days = tasks completed. Switch to Week to check things off.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {week.map((d) => {
+                      const ds = fmt(d)
+                      const isToday = ds === todayStr()
+                      const isFuture = d.getTime() > new Date().setHours(23, 59, 59, 999)
+                      const doneCount = tasks.filter(t => done.has(`${t.id}|${ds}`)).length
+                      return (
+                        <div key={ds} className={`rounded-xl border p-3.5 ${isToday ? "border-primary/40 bg-primary/[0.06]" : "border-border bg-card"}`}>
+                          <div className="flex items-center justify-between mb-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-medium ${isToday ? "text-primary" : "text-foreground"}`}>
+                                {d.toLocaleDateString("en-US", { weekday: "short" })} {d.getDate()}
+                              </span>
+                              {isToday && <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] text-primary">Today</span>}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">{doneCount}/{tasks.length}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {tasks.map(t => {
+                              const isDone = done.has(`${t.id}|${ds}`)
+                              const cfg = CAT[t.category] || CAT.tracking
+                              const Icon = cfg.icon
+                              return (
+                                <button key={t.id} onClick={() => !isFuture && toggleDay(t, ds)} disabled={isFuture} title={t.task_name}
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition-colors disabled:opacity-40 ${isDone ? "border-health-optimal/40 bg-health-optimal/15 text-health-optimal" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+                                  {isDone ? <Check className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
+                                  <span className="max-w-[140px] truncate">{t.task_name}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
             )}
 
             <p className="mt-6 text-[11px] text-muted-foreground/70 text-center">

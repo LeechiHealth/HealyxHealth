@@ -343,9 +343,9 @@ function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-foreground mb-2 tracking-tight">Research & Insights</h1>
+        <h1 className="text-3xl font-bold text-foreground mb-2 tracking-tight">Let&apos;s see what the research says</h1>
         <p className="text-[15px] text-muted-foreground max-w-md">
-          Search peer-reviewed journals, clinical trials, and validated medical literature
+          Type any condition or treatment — we&apos;ll pull the real evidence and explain it simply.
         </p>
       </div>
 

@@ -36,7 +36,9 @@ export function Header() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/home" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/healyx-logo.svg" alt="Healyx" className="h-7 w-7" />
+          <img src="/healyx-logo-white.png" alt="Healyx" className="h-7 w-7 hidden dark:block" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/healyx-logo-blue.png" alt="Healyx" className="h-7 w-7 block dark:hidden" />
           <span className="text-xl font-semibold tracking-tight text-primary">healyx</span>
         </Link>
 

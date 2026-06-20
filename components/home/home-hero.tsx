@@ -37,6 +37,11 @@ export function HomeHero() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [messages, loading])
 
+  const firstName = (() => {
+    const n = (user as any)?.user_metadata?.first_name || (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || ""
+    return typeof n === "string" && n.trim() ? n.trim().split(" ")[0] : "there"
+  })()
+
   // Recording state
   const [isRecording, setIsRecording] = React.useState(false)
   const [isTranscribing, setIsTranscribing] = React.useState(false)
@@ -289,10 +294,10 @@ export function HomeHero() {
             {messages.length === 0 && (
               <div className="text-center mb-6 mt-2">
                 <h1 className="text-foreground text-3xl sm:text-4xl font-light mt-1 text-balance">
-                  Your health, <span className="text-gradient-cyan">understood.</span>
+                  Hey {firstName}, <span className="text-gradient-cyan">what&apos;s on your mind?</span>
                 </h1>
                 <p className="text-muted-foreground mt-3 max-w-xl text-sm sm:text-base leading-relaxed">
-                  Ask about your health, record visits, upload any lab result. Get AI-powered explanations. Track your biomarker trends over time.
+                  Ask me anything about your health, drop in a lab result, or record a visit — I&apos;ll break it down simply.
                 </p>
               </div>
             )}

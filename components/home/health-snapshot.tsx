@@ -4,6 +4,8 @@ import * as React from "react"
 import Link from "next/link"
 import { useBiomarkers } from "@/hooks/useBiomarkers"
 import { useAuth } from "@/components/AuthContext"
+import { supabase } from "@/lib/supabase/client"
+import { computeHealthScore } from "@/lib/healthScore"
 
 // Status buckets
 const ATTENTION = new Set(["high", "low", "borderline", "critical", "out-of-range"])
@@ -39,30 +41,53 @@ function greeting(): string {
 export function HealthSnapshot() {
   const { biomarkers, loading } = useBiomarkers()
   const { user } = useAuth()
+  const [extra, setExtra] = React.useState<{ vitals: any; profile: any; intake: any }>({ vitals: null, profile: null, intake: null })
 
+  React.useEffect(() => {
+    if (!user) return
+    ;(async () => {
+      const [vRes, pRes, iRes] = await Promise.all([
+        supabase.from("vitals").select("systolic_bp, diastolic_bp, bmi, blood_glucose, recorded_at").eq("user_id", user.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("profiles").select("height_inches, weight_lbs").eq("id", user.id).maybeSingle(),
+        supabase.from("intake_responses").select("sleep_hours, exercise_days").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      ])
+      setExtra({ vitals: vRes.data, profile: pRes.data, intake: iRes.data })
+    })()
+  }, [user])
+
+  // Health score via the AHA Life's Essential 8 method (see lib/healthScore.ts)
   const { score, label, attention } = React.useMemo(() => {
-    const withStatus = (biomarkers || []).filter(
-      (b: any) => b.status && WEIGHT[b.status] !== undefined
-    )
-    let score = 0
-    if (withStatus.length > 0) {
-      const sum = withStatus.reduce(
-        (acc: number, b: any) => acc + (WEIGHT[b.status] ?? 0.6),
-        0
-      )
-      score = Math.round((sum / withStatus.length) * 100)
+    const bios = biomarkers || []
+    const bioVal = (subs: string[]) => {
+      const b = bios.find((x: any) => x.name && subs.some((s) => x.name.toLowerCase().includes(s)))
+      return b ? Number(b.value) : null
     }
-    const label = score >= 80 ? "Good" : score >= 60 ? "Fair" : score > 0 ? "Needs work" : "—"
+    const v = extra.vitals || {}, p = extra.profile || {}, ik = extra.intake || {}
+    const total = bioVal(["total cholesterol", "cholesterol, total"])
+    const hdl = bioVal(["hdl"])
+    const ldl = bioVal(["ldl"])
+    const nonHDL = total != null && hdl != null ? total - hdl : ldl != null ? ldl + 30 : null
+    const bmi = (v.bmi != null ? Number(v.bmi) : null)
+      ?? (p.height_inches && p.weight_lbs ? (703 * Number(p.weight_lbs)) / (Number(p.height_inches) ** 2) : null)
 
-    const attention = (biomarkers || [])
+    const { score, grade } = computeHealthScore({
+      systolic: v.systolic_bp ?? null,
+      diastolic: v.diastolic_bp ?? null,
+      hba1c: bioVal(["a1c"]),
+      fastingGlucose: (v.blood_glucose != null ? Number(v.blood_glucose) : null) ?? bioVal(["glucose"]),
+      nonHDL,
+      bmi,
+      sleepHours: ik.sleep_hours != null ? Number(ik.sleep_hours) : null,
+      activityMinutes: ik.exercise_days != null ? Number(ik.exercise_days) * 30 : null,
+      nicotine: null,
+    })
+
+    const attention = bios
       .filter((b: any) => b.status && ATTENTION.has(b.status))
-      .sort(
-        (a: any, b: any) =>
-          (SEVERITY[a.status] ?? 9) - (SEVERITY[b.status] ?? 9)
-      )
+      .sort((a: any, b: any) => (SEVERITY[a.status] ?? 9) - (SEVERITY[b.status] ?? 9))
 
-    return { score, label, attention }
-  }, [biomarkers])
+    return { score, label: grade, attention }
+  }, [biomarkers, extra])
 
   // Ring geometry
   const R = 26
