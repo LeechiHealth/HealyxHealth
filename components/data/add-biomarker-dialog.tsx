@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Plus, Upload, FileText, Check, X, Loader2 } from "lucide-react"
+import { Plus, Upload, FileText, Check, X, Loader2, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -67,6 +67,7 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
   const [extracting, setExtracting] = React.useState(false)
   const [extracted, setExtracted] = React.useState<ExtractedBiomarker[]>([])
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const cameraInputRef = React.useRef<HTMLInputElement>(null)
 
   function reset() {
     setFormData({ type: "", customName: "", value: "", unit: "", date: new Date().toISOString().split('T')[0] })
@@ -204,8 +205,8 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
             onClick={() => setMode('upload')}
             className={cn("flex-1 text-sm py-1.5 rounded-md transition-colors flex items-center justify-center gap-1.5", mode === 'upload' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
           >
-            <Upload className="h-3.5 w-3.5" />
-            Upload PDF
+            <Camera className="h-3.5 w-3.5" />
+            Scan / Upload
           </button>
         </div>
 
@@ -265,26 +266,32 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
         {/* ── Upload mode ── */}
         {mode === 'upload' && (
           <div className="space-y-4">
-            {/* Drop zone */}
+            {/* Capture / upload */}
             {!fileName && (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-primary/30 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
-              >
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Upload className="h-6 w-6 text-primary" />
+              <div className="space-y-3">
+                <div className="border-2 border-dashed border-primary/30 rounded-xl p-6 flex flex-col items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Camera className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-foreground">Scan your lab result</p>
+                    <p className="text-xs text-muted-foreground mt-1">Snap a photo of your lab sheet — or upload a PDF/image. AI reads the values for you.</p>
+                  </div>
+                  <div className="flex gap-2 w-full">
+                    <Button type="button" onClick={() => cameraInputRef.current?.click()}
+                      className="flex-1 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30">
+                      <Camera className="h-4 w-4 mr-1.5" /> Take photo
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 border border-border">
+                      <Upload className="h-4 w-4 mr-1.5" /> Upload file
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="text-sm font-medium text-foreground">Upload lab report</p>
-                  <p className="text-xs text-muted-foreground mt-1">PDF or text file • AI will extract biomarkers automatically</p>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,text/plain"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
+                {/* camera capture (opens rear camera on phones) */}
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
+                {/* file picker (pdf or image) */}
+                <input ref={fileInputRef} type="file" accept=".pdf,text/plain,image/*" className="hidden" onChange={handleFileChange} />
               </div>
             )}
 

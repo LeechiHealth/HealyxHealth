@@ -138,6 +138,8 @@ async function extractPdfText(base64: string): Promise<string> {
 }
 
 // ── Route handler ───────────────────────────────────────────────────────────
+const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
+
 export async function POST(req: NextRequest) {
   try {
     const { base64, mimeType, fileName } = await req.json()
@@ -146,51 +148,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File data required' }, { status: 400 })
     }
 
-    let rawText = ''
-
-    if (mimeType === 'application/pdf') {
-      rawText = await extractPdfText(base64)
-    } else if (mimeType?.startsWith('text/')) {
-      rawText = Buffer.from(base64, 'base64').toString('utf-8').substring(0, 4000)
-    } else {
-      rawText = `[File: ${fileName}]`
-    }
-
-    if (!rawText || rawText.length < 20) {
-      return NextResponse.json({
-        biomarkers: [],
-        message: 'Could not extract text from this PDF. If it is a scanned document, upload it as a JPG or PNG image instead — the AI can read images directly.',
-      })
-    }
-
     const today = new Date().toISOString().split('T')[0]
+    const FIELDS = `Each item: name (string, e.g. "Glucose", "HDL Cholesterol", "TSH"), value (number only), unit (string, e.g. "mg/dL", "%"), test_date (YYYY-MM-DD, use ${today} if not shown), reference_range_text (string or null), status ("optimal"|"normal"|"borderline"|"high"|"low"|"critical"|null).`
 
-    const prompt = `You are a medical lab report parser. Extract all biomarkers/test results from the following lab report text.
+    let rawResponse = '[]'
 
-Return ONLY a valid JSON array (no markdown, no code blocks, no explanation). Each item:
-- name: string (e.g. "Glucose", "HDL Cholesterol", "TSH", "Hemoglobin A1c")
-- value: number (numeric only)
-- unit: string (e.g. "mg/dL", "%", "IU/L")
-- test_date: string YYYY-MM-DD (use ${today} if not found)
-- reference_range_text: string or null (e.g. "70-99 mg/dL")
-- status: "optimal"|"normal"|"borderline"|"high"|"low"|"critical"|null
+    if (mimeType?.startsWith('image/')) {
+      // Camera / photo of a lab report → read it directly with the vision model
+      const dataUrl = `data:${mimeType};base64,${base64}`
+      const completion = await groq.chat.completions.create({
+        model: VISION_MODEL,
+        messages: [
+          { role: 'system', content: 'You read photos of medical lab reports and extract the results. Return ONLY a JSON array, no markdown.' },
+          {
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: dataUrl } },
+              { type: 'text', text: `Extract every biomarker/test result you can read in this lab report photo. Return ONLY a JSON array (no code block, no commentary). ${FIELDS}` },
+            ],
+          } as any,
+        ],
+        max_tokens: 1500,
+        temperature: 0.1,
+      })
+      rawResponse = completion.choices[0]?.message?.content?.trim() || '[]'
+    } else {
+      let rawText = ''
+      if (mimeType === 'application/pdf') {
+        rawText = await extractPdfText(base64)
+      } else if (mimeType?.startsWith('text/')) {
+        rawText = Buffer.from(base64, 'base64').toString('utf-8').substring(0, 4000)
+      } else {
+        rawText = `[File: ${fileName}]`
+      }
+
+      if (!rawText || rawText.length < 20) {
+        return NextResponse.json({
+          biomarkers: [],
+          message: 'Could not read text from this file. If it is a scan or photo, use the camera/photo option — the AI can read images directly.',
+        })
+      }
+
+      const prompt = `You are a medical lab report parser. Extract all biomarkers/test results from the following lab report text.
+
+Return ONLY a valid JSON array (no markdown, no code blocks, no explanation). ${FIELDS}
 
 Lab report:
 ${rawText}
 
 JSON:`
 
-    const completion = await groq.chat.completions.create({
-      model: GROQ_MODEL,
-      messages: [
-        { role: 'system', content: 'Extract lab biomarkers. Return only a JSON array.' },
-        { role: 'user', content: prompt },
-      ],
-      max_tokens: 1500,
-      temperature: 0.1,
-    })
-
-    const rawResponse = completion.choices[0]?.message?.content?.trim() || '[]'
+      const completion = await groq.chat.completions.create({
+        model: GROQ_MODEL,
+        messages: [
+          { role: 'system', content: 'Extract lab biomarkers. Return only a JSON array.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: 1500,
+        temperature: 0.1,
+      })
+      rawResponse = completion.choices[0]?.message?.content?.trim() || '[]'
+    }
 
     let biomarkers: any[] = []
     try {
