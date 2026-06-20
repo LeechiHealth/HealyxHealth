@@ -26,10 +26,10 @@ export const metadata = {
   },
   icons: {
     icon: [
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/healyx-icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/healyx-mark-64.png', sizes: '64x64', type: 'image/png' },
     ],
-    apple: [{ url: '/apple-icon-180.png', sizes: '180x180' }],
+    apple: [{ url: '/healyx-apple-180.png', sizes: '180x180' }],
   },
 }
 
