@@ -175,6 +175,7 @@ export default function ProtocolPage() {
         user_id: user.id, phase: "baseline",
         health_score: gen.health_score, health_score_target: gen.health_score_target,
         plain_summary: gen.plain_summary, issues_ranked: gen.issues_ranked, interventions: gen.tasks,
+        report: gen.report ?? null,
         retest_date: retest.toISOString().slice(0, 10), full_retest_date: full.toISOString().slice(0, 10),
         status: "active",
       }).select().single()
@@ -286,6 +287,44 @@ export default function ProtocolPage() {
               </div>
             </div>
 
+            {/* Here's what's going on */}
+            {protocol.report?.whats_going_on && (
+              <div className="mb-4">
+                <h2 className="text-sm font-medium text-foreground mb-1.5">Here&apos;s what&apos;s going on</h2>
+                <p className="text-sm text-foreground/90 leading-relaxed">{protocol.report.whats_going_on}</p>
+              </div>
+            )}
+
+            {/* What's working */}
+            {Array.isArray(protocol.report?.strengths) && protocol.report.strengths.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">What&apos;s working</p>
+                <div className="space-y-1.5">
+                  {protocol.report.strengths.map((s: string, i: number) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-foreground/90">
+                      <Check className="h-4 w-4 text-health-optimal mt-0.5 shrink-0" />{s}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* What to focus on (concerns + research) */}
+            {Array.isArray(protocol.report?.concerns) && protocol.report.concerns.length > 0 && (
+              <div className="mb-5">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">What to focus on</p>
+                <div className="space-y-2.5">
+                  {protocol.report.concerns.map((c: any, i: number) => (
+                    <div key={i} className="rounded-xl border border-border bg-card p-3.5">
+                      <p className="text-sm font-medium text-foreground">{c.label}</p>
+                      {c.plain && <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{c.plain}</p>}
+                      {c.research && <p className="text-xs text-primary/90 mt-1.5 leading-relaxed"><span className="font-medium">What the research says:</span> {c.research}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* What this is based on */}
             <div className="rounded-xl border border-border bg-card mb-4 overflow-hidden">
               <button onClick={() => setBasedOnOpen(o => !o)} className="w-full flex items-center justify-between px-4 py-3">
@@ -329,6 +368,14 @@ export default function ProtocolPage() {
                   )}
                   <p className="text-[10px] text-muted-foreground/60">Built from your questionnaire, conditions, medications, and recent labs.</p>
                 </div>
+              )}
+            </div>
+
+            {/* Your next 4 weeks */}
+            <div className="mb-3">
+              <h2 className="text-sm font-medium text-foreground">Your next 4 weeks</h2>
+              {protocol.report?.four_week_focus && (
+                <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{protocol.report.four_week_focus}</p>
               )}
             </div>
 
@@ -512,8 +559,17 @@ export default function ProtocolPage() {
               </>
             )}
 
-            <p className="mt-6 text-[11px] text-muted-foreground/70 text-center">
-              Educational wellness guidance, not medical advice. Retest around {protocol.retest_date || "week 8"}.
+            {/* Then we redo it */}
+            <div className="mt-6 rounded-xl border border-border bg-card/60 p-4">
+              <p className="text-sm font-medium text-foreground mb-1">Then we redo it</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {protocol.report?.what_changes_next || "In about 4 weeks we'll re-check your numbers and adjust the plan based on what changed."}
+                {" "}Recheck around {protocol.retest_date || "4 weeks"}, then hit Regenerate.
+              </p>
+            </div>
+
+            <p className="mt-4 text-[11px] text-muted-foreground/70 text-center">
+              Educational wellness guidance, not medical advice.
             </p>
           </>
         )}
