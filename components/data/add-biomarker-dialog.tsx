@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/components/AuthContext"
 import { cn } from "@/lib/utils"
+import { prepareFile } from "@/lib/image"
 
 const BIOMARKER_TYPES = [
   "Cholesterol Total", "HDL Cholesterol", "LDL Cholesterol", "Triglycerides",
@@ -122,11 +123,11 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
     setExtracting(true)
 
     try {
-      const base64 = await fileToBase64(file)
+      const prepared = await prepareFile(file)
       const res = await fetch('/api/labs/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64, mimeType: file.type, fileName: file.name }),
+        body: JSON.stringify({ base64: prepared.base64, mimeType: prepared.mimeType, fileName: prepared.name }),
       })
       const data = await res.json()
 

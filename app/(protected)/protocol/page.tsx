@@ -5,6 +5,7 @@ import { Header } from "@/components/header"
 import { ProtocolIntake } from "@/components/protocol/protocol-intake"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/components/AuthContext"
+import { loadHealthScore, type LoadedHealthScore } from "@/lib/clientHealth"
 import {
   Footprints, Utensils, Pill, Moon, Wind, Ban, Activity,
   Sparkles, Check, RefreshCw, Loader2, List, LayoutGrid, CalendarDays,
@@ -67,6 +68,7 @@ export default function ProtocolPage() {
   const [intake, setIntake] = React.useState<any>(null)
   const [intakeOpen, setIntakeOpen] = React.useState(false)
   const [basedOnOpen, setBasedOnOpen] = React.useState(false)
+  const [liveScore, setLiveScore] = React.useState<LoadedHealthScore | null>(null)
 
   const week = React.useMemo(() => currentWeek(), [])
   const monthGrid = React.useMemo(() => buildMonthGrid(new Date()), [])
@@ -87,6 +89,8 @@ export default function ProtocolPage() {
     const { data: ik } = await supabase.from("intake_responses").select("*")
       .eq("user_id", user.id).eq("completed", true).order("completed_at", { ascending: false }).limit(1).maybeSingle()
     setIntake(ik || null)
+
+    loadHealthScore(user.id).then(setLiveScore).catch(() => setLiveScore(null))
 
     if (active) {
       const [{ data: t }, { data: comps }] = await Promise.all([
@@ -274,7 +278,7 @@ export default function ProtocolPage() {
             <div className="rounded-2xl border border-health-optimal/20 bg-health-optimal/[0.06] p-5 mb-4">
               <div className="flex items-start gap-4">
                 <div className="text-center shrink-0">
-                  <p className="text-3xl font-medium text-foreground leading-none">{Math.round(protocol.health_score ?? 0)}</p>
+                  <p className="text-3xl font-medium text-foreground leading-none">{Math.round(liveScore?.score ?? protocol.health_score ?? 0)}</p>
                   <p className="text-[11px] text-health-optimal/90 mt-1">score</p>
                   {protocol.health_score_target != null && (
                     <p className="text-[11px] text-muted-foreground mt-1">target {Math.round(protocol.health_score_target)}</p>

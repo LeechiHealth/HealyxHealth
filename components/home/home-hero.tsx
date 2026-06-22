@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Header } from "@/components/header"
 import { useChat, FileAttachment } from "@/hooks/usechat"
+import { prepareFile } from "@/lib/image"
 import { useAuth } from "@/components/AuthContext"
 import { supabase } from "@/lib/supabase/client"
 import { toast } from "sonner"
@@ -60,34 +61,33 @@ export function HomeHero() {
   ]
   const MAX_SIZE_MB = 10
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     setFileError(null)
 
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      setFileError("Unsupported file type. Please upload a PDF or image (JPG, PNG, HEIC).")
+    // iPhone photos can have an empty type or be HEIC — treat anything non-PDF as an image.
+    const isPdf = file.type === "application/pdf"
+    const isImage = file.type.startsWith("image/") || file.type === ""
+    if (!isPdf && !isImage) {
+      setFileError("Please upload a PDF or a photo.")
+      e.target.value = ""
       return
     }
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      setFileError(`File too large. Max ${MAX_SIZE_MB}MB.`)
+    if (isPdf && file.size > MAX_SIZE_MB * 1024 * 1024) {
+      setFileError(`PDF too large. Max ${MAX_SIZE_MB}MB.`)
+      e.target.value = ""
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string
-      const base64 = dataUrl.split(",")[1]
-      setAttachedFile({ base64, mimeType: file.type, name: file.name })
+    try {
+      // prepareFile re-encodes images (incl. HEIC / large phone photos) to JPEG
+      const prepared = await prepareFile(file)
+      setAttachedFile(prepared)
       setIsMenuOpen(false)
+    } catch {
+      setFileError("Couldn't read that file. Try a different photo.")
     }
-    reader.onerror = () => {
-      setFileError("Failed to read file. Please try again.")
-    }
-    reader.readAsDataURL(file)
-
-    // Reset input so same file can be re-selected
     e.target.value = ""
   }
 

@@ -4,8 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { useBiomarkers } from "@/hooks/useBiomarkers"
 import { useAuth } from "@/components/AuthContext"
-import { supabase } from "@/lib/supabase/client"
-import { computeHealthScore, computePhenoAge } from "@/lib/healthScore"
+import { loadHealthScore, type LoadedHealthScore } from "@/lib/clientHealth"
 
 // Status buckets
 const ATTENTION = new Set(["high", "low", "borderline", "critical", "out-of-range"])
@@ -41,72 +40,25 @@ function greeting(): string {
 export function HealthSnapshot() {
   const { biomarkers, loading } = useBiomarkers()
   const { user } = useAuth()
-  const [extra, setExtra] = React.useState<{ vitals: any; profile: any; intake: any }>({ vitals: null, profile: null, intake: null })
+  const [hs, setHs] = React.useState<LoadedHealthScore | null>(null)
 
+  // Shared health-score loader — identical to the Protocol page (single source of truth)
   React.useEffect(() => {
     if (!user) return
-    ;(async () => {
-      const [vRes, pRes, iRes] = await Promise.all([
-        supabase.from("vitals").select("systolic_bp, diastolic_bp, bmi, blood_glucose, recorded_at").eq("user_id", user.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("profiles").select("height_inches, weight_lbs, date_of_birth").eq("id", user.id).maybeSingle(),
-        supabase.from("intake_responses").select("sleep_hours, exercise_days").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      ])
-      setExtra({ vitals: vRes.data, profile: pRes.data, intake: iRes.data })
-    })()
+    loadHealthScore(user.id).then(setHs).catch(() => setHs(null))
   }, [user])
 
-  // Health score via the AHA Life's Essential 8 method (see lib/healthScore.ts)
-  const { score, label, attention, pheno } = React.useMemo(() => {
-    const bios = biomarkers || []
-    const bioVal = (subs: string[]) => {
-      const b = bios.find((x: any) => x.name && subs.some((s) => x.name.toLowerCase().includes(s)))
-      return b ? Number(b.value) : undefined
-    }
-    const v = extra.vitals || {}, p = extra.profile || {}, ik = extra.intake || {}
-    const total = bioVal(["total cholesterol", "cholesterol, total"])
-    const hdl = bioVal(["hdl"])
-    const ldl = bioVal(["ldl"])
-    const nonHDL = total != null && hdl != null ? total - hdl : ldl != null ? ldl + 30 : null
-    const bmi = (v.bmi != null ? Number(v.bmi) : null)
-      ?? (p.height_inches && p.weight_lbs ? (703 * Number(p.weight_lbs)) / (Number(p.height_inches) ** 2) : null)
+  const score = hs?.score ?? 0
+  const label = hs?.grade ?? "—"
+  const pheno = hs?.pheno ?? null
 
-    const { score, grade } = computeHealthScore({
-      systolic: v.systolic_bp ?? null,
-      diastolic: v.diastolic_bp ?? null,
-      hba1c: bioVal(["a1c"]),
-      fastingGlucose: (v.blood_glucose != null ? Number(v.blood_glucose) : null) ?? bioVal(["glucose"]),
-      nonHDL,
-      bmi,
-      sleepHours: ik.sleep_hours != null ? Number(ik.sleep_hours) : null,
-      activityMinutes: ik.exercise_days != null ? Number(ik.exercise_days) * 30 : null,
-      nicotine: null,
-    })
-
-    // Biological age (Levine PhenoAge) — needs the 9-lab panel + chronological age
-    const ageYears = p.date_of_birth
-      ? Math.floor((Date.now() - new Date(p.date_of_birth).getTime()) / 31557600000)
-      : undefined
-    const pheno = ageYears
-      ? computePhenoAge({
-          ageYears,
-          albumin_gdl: bioVal(["albumin"]),
-          creatinine_mgdl: bioVal(["creatinine"]),
-          glucose_mgdl: (v.blood_glucose != null ? Number(v.blood_glucose) : undefined) ?? bioVal(["glucose"]),
-          crp_mgl: bioVal(["c-reactive", "crp"]),
-          lymphocyte_pct: bioVal(["lymphocyte"]),
-          mcv_fl: bioVal(["mcv", "mean corpuscular volume", "mean cell volume"]),
-          rdw_pct: bioVal(["rdw", "red cell distribution"]),
-          alp_ul: bioVal(["alkaline phosphatase", "alk phos"]),
-          wbc_k: bioVal(["wbc", "white blood cell"]),
-        })
-      : null
-
-    const attention = bios
-      .filter((b: any) => b.status && ATTENTION.has(b.status))
-      .sort((a: any, b: any) => (SEVERITY[a.status] ?? 9) - (SEVERITY[b.status] ?? 9))
-
-    return { score, label: grade, attention, pheno }
-  }, [biomarkers, extra])
+  const attention = React.useMemo(
+    () =>
+      (biomarkers || [])
+        .filter((b: any) => b.status && ATTENTION.has(b.status))
+        .sort((a: any, b: any) => (SEVERITY[a.status] ?? 9) - (SEVERITY[b.status] ?? 9)),
+    [biomarkers],
+  )
 
   // Ring geometry
   const R = 26

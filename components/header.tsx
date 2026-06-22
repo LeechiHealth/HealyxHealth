@@ -13,6 +13,7 @@ const navItems = [
   { name: "Data", href: "/data" },
   { name: "Insights", href: "/insights" },
   { name: "Protocol", href: "/protocol" },
+  { name: "Brain", href: "/cognitive" },
 ]
 
 export function Header() {
