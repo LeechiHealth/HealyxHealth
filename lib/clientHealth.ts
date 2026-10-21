@@ -1,19 +1,17 @@
 // Single source of truth for the Healyx Health Score on the client, so Home and
 // Protocol always show the SAME number. Gathers the user's data and runs the
-// Life's Essential 8 (+ PhenoAge) computation from lib/healthScore.ts.
+// simplified wellness indicator (+ PhenoAge) from lib/healthScore.ts.
 
 import { supabase } from "@/lib/supabase/client"
 import { computeHealthScore, computePhenoAge } from "@/lib/healthScore"
 
-export interface LoadedHealthScore {
-  score: number
-  grade: string
+export interface LoadedHealthScore extends ReturnType<typeof computeHealthScore> {
   pheno: { phenoAge: number; delta: number; chronological: number } | null
 }
 
 export async function loadHealthScore(userId: string): Promise<LoadedHealthScore> {
   const [bioRes, vRes, pRes, iRes] = await Promise.all([
-    supabase.from("biomarkers").select("name, value, status").eq("user_id", userId),
+    supabase.from("biomarkers").select("name, value, status, test_date").eq("user_id", userId).order("test_date", { ascending: false }),
     supabase.from("vitals").select("systolic_bp, diastolic_bp, bmi, blood_glucose, recorded_at")
       .eq("user_id", userId).order("recorded_at", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("profiles").select("height_inches, weight_lbs, date_of_birth").eq("id", userId).maybeSingle(),
@@ -21,23 +19,25 @@ export async function loadHealthScore(userId: string): Promise<LoadedHealthScore
       .eq("user_id", userId).eq("completed", true).order("completed_at", { ascending: false }).limit(1).maybeSingle(),
   ])
 
+  if (bioRes.error || vRes.error || pRes.error || iRes.error) throw new Error("Unable to load health metrics. Please refresh and try again.")
+
   const bios = (bioRes.data || []) as any[]
   const bioVal = (subs: string[]) => {
     const b = bios.find((x) => x.name && subs.some((s) => x.name.toLowerCase().includes(s)))
-    return b ? Number(b.value) : undefined
+    return b && b.value !== "" && b.value != null && Number.isFinite(Number(b.value)) ? Number(b.value) : undefined
   }
   const v: any = vRes.data || {}
   const p: any = pRes.data || {}
   const ik: any = iRes.data || {}
 
   const total = bioVal(["total cholesterol", "cholesterol, total"])
-  const hdl = bioVal(["hdl"])
-  const ldl = bioVal(["ldl"])
-  const nonHDL = total != null && hdl != null ? total - hdl : ldl != null ? ldl + 30 : undefined
+  const hdlRow = bios.find(x => /^(hdl|hdl-c|hdl cholesterol|cholesterol, hdl)$/i.test(x.name?.trim() || ""))
+  const hdl = hdlRow?.value != null && hdlRow.value !== "" && Number.isFinite(Number(hdlRow.value)) ? Number(hdlRow.value) : undefined
+  const nonHDL = total != null && hdl != null ? total - hdl : undefined
   const bmi = (v.bmi != null ? Number(v.bmi) : undefined)
     ?? (p.height_inches && p.weight_lbs ? (703 * Number(p.weight_lbs)) / (Number(p.height_inches) ** 2) : undefined)
 
-  const { score, grade } = computeHealthScore({
+  const result = computeHealthScore({
     systolic: v.systolic_bp ?? null,
     diastolic: v.diastolic_bp ?? null,
     hba1c: bioVal(["a1c"]),
@@ -45,7 +45,7 @@ export async function loadHealthScore(userId: string): Promise<LoadedHealthScore
     nonHDL,
     bmi,
     sleepHours: ik.sleep_hours != null ? Number(ik.sleep_hours) : null,
-    activityMinutes: ik.exercise_days != null ? Number(ik.exercise_days) * 30 : null,
+    activityMinutes: null, // Exercise days do not establish duration or intensity.
     nicotine: ik.nicotine ?? null,
   })
 
@@ -67,5 +67,5 @@ export async function loadHealthScore(userId: string): Promise<LoadedHealthScore
       })
     : null
 
-  return { score, grade, pheno }
+  return { ...result, pheno }
 }

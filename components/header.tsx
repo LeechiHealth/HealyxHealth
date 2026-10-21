@@ -9,11 +9,10 @@ import { useAuth } from "@/components/AuthContext"
 import { Menu, X, Sun, Moon } from "lucide-react"
 
 const navItems = [
-  { name: "Home", href: "/home" },
-  { name: "Data", href: "/data" },
-  { name: "Insights", href: "/insights" },
+  { name: "Overview", href: "/home" },
+  { name: "Health Records", href: "/data" },
+  { name: "Research", href: "/insights" },
   { name: "Protocol", href: "/protocol" },
-  { name: "Brain", href: "/cognitive" },
 ]
 
 export function Header() {
@@ -37,10 +36,10 @@ export function Header() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
         <Link href="/home" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/healyx-logo-white.png" alt="Healyx" className="h-7 w-7 hidden dark:block" />
+          <img src="/healyx-logo-white.png" alt="Healyx" className="h-9 w-9 hidden dark:block" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/healyx-logo-blue.png" alt="Healyx" className="h-7 w-7 block dark:hidden" />
-          <span className="text-xl font-semibold tracking-tight text-primary">healyx</span>
+          <img src="/healyx-logo-blue.png" alt="Healyx" className="h-9 w-9 block dark:hidden" />
+          <span className="text-2xl font-bold tracking-tight text-foreground">healyx</span>
         </Link>
 
         {/* Desktop nav */}
@@ -50,10 +49,11 @@ export function Header() {
               <Link
                 key={item.name}
                 href={item.href}
+                aria-current={pathname === item.href ? "page" : undefined}
                 className={cn(
-                  "px-4 py-2 text-sm font-medium rounded-full transition-colors",
+                  "px-4 py-2 text-sm font-semibold rounded-full transition-colors",
                   pathname === item.href
-                    ? "bg-primary/20 text-primary glow-cyan"
+                    ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -84,6 +84,8 @@ export function Header() {
           {/* Mobile hamburger */}
           <button
             type="button"
+            aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={mobileOpen}
             onClick={() => setMobileOpen(!mobileOpen)}
             className="md:hidden text-muted-foreground hover:text-foreground transition-colors"
           >

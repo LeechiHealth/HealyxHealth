@@ -56,8 +56,8 @@ const BADGE_CONFIG: Record<string, { label: string; icon: string; cls: string }>
     icon: "◉",
     cls: "bg-blue-500/15 text-blue-300 border border-blue-500/25",
   },
-  "Peer-Reviewed": {
-    label: "PEER-REVIEWED",
+  "PubMed indexed": {
+    label: "PUBMED INDEXED",
     icon: "✓",
     cls: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/25",
   },
@@ -140,7 +140,7 @@ function ResultCard({
   }
 
   return (
-    <div className="group relative border border-white/8 rounded-2xl bg-white/[0.018] hover:bg-white/[0.03] hover:border-white/14 transition-all duration-200 p-5">
+    <div className="group relative border border-border rounded-2xl bg-card hover:border-primary/30 transition-all duration-200 p-5 sm:p-6">
 
       {/* Number + Title row */}
       <div className="flex gap-4 mb-3">
@@ -166,7 +166,7 @@ function ResultCard({
           className={`flex-shrink-0 mt-0.5 transition-all duration-150 ${
             isBookmarked
               ? "opacity-100 text-amber-400"
-              : "opacity-0 group-hover:opacity-50 hover:!opacity-100 text-muted-foreground hover:text-amber-400"
+              : "opacity-60 hover:opacity-100 text-muted-foreground hover:text-amber-400"
           }`}
           aria-label={isBookmarked ? "Remove from library" : "Save to library"}
         >
@@ -178,7 +178,7 @@ function ResultCard({
           href={result.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity mt-0.5"
+          className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity mt-0.5"
           aria-label="Open source"
         >
           <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -191,7 +191,7 @@ function ResultCard({
       {abstract && (
         <div className="ml-11 mb-3.5">
           <span className="text-[10px] font-bold tracking-widest text-muted-foreground/50 uppercase mr-2">
-            Key Takeaway ·
+            Source abstract ·
           </span>
           <span className="text-[13px] text-muted-foreground leading-relaxed">
             {expanded ? abstract : snippet}
@@ -225,7 +225,7 @@ function ResultCard({
       )}
 
       {/* Metadata: year · author · journal · source */}
-      <div className="ml-11 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground/55">
+      <div className="ml-11 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
         {result.year && <span>{result.year}</span>}
         {result.year && (authorLine || result.journal) && <span className="text-white/15">·</span>}
         {authorLine && <span>{authorLine}</span>}
@@ -245,7 +245,7 @@ function ResultCard({
             <span>{result.status}</span>
           </>
         )}
-        <span className="ml-auto text-[10px] text-white/20 font-medium tracking-wide uppercase hidden sm:block">
+        <span className="ml-auto text-[10px] text-muted-foreground font-medium tracking-wide uppercase hidden sm:block">
           {result.source === "PubMed / NIH" ? "PubMed" : result.source}
         </span>
       </div>
@@ -254,7 +254,7 @@ function ResultCard({
       {result.meshTerms && result.meshTerms.length > 0 && (
         <div className="ml-11 flex flex-wrap gap-1.5 mt-3">
           {result.meshTerms.map((term) => (
-            <span key={term} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/8 text-white/30 font-medium">
+            <span key={term} className="text-[10px] px-2 py-0.5 rounded-full bg-muted/50 border border-border text-muted-foreground font-medium">
               {term}
             </span>
           ))}
@@ -332,8 +332,8 @@ function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
   const [q, setQ] = useState("");
 
   const suggestions = [
-    "Testosterone replacement therapy",
-    "Metformin and longevity",
+    "Sleep and metabolic health",
+    "Exercise and blood pressure",
     "Intermittent fasting metabolic health",
     "Vitamin D deficiency cardiovascular",
     "GLP-1 agonists weight loss",
@@ -341,11 +341,11 @@ function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
   ];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-foreground mb-2 tracking-tight">Let&apos;s see what the research says</h1>
-        <p className="text-[15px] text-muted-foreground max-w-md">
-          Type any condition or treatment — we&apos;ll pull the real evidence and explain it simply.
+    <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 mx-auto max-w-5xl py-12">
+      <div className="mb-8 text-center"><p className="text-xs font-bold tracking-[0.24em] uppercase text-primary mb-5">Research / Evidence library</p>
+        <h1 className="text-4xl sm:text-6xl font-semibold text-foreground mb-5 tracking-tight max-w-3xl">A clearer view of the evidence.</h1>
+        <p className="text-base text-muted-foreground max-w-xl mx-auto leading-relaxed">
+          Explore published studies and registered trials. Compare sources, save useful papers, and bring better questions to your next appointment.
         </p>
       </div>
 
@@ -363,12 +363,12 @@ function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search any health topic, condition, or treatment…"
             autoFocus
-            className="w-full bg-white/[0.04] border border-white/12 hover:border-white/20 focus:border-primary/50 rounded-2xl pl-12 pr-28 py-4 text-[15px] text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors"
+            className="w-full bg-card border border-border hover:border-primary/30 focus:border-primary/50 rounded-2xl pl-12 pr-28 py-4 text-[15px] text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors"
           />
           <button
             type="submit"
             disabled={!q.trim()}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 bg-primary hover:bg-primary disabled:opacity-30 disabled:cursor-not-allowed text-black text-[13px] font-bold px-4 py-1.5 rounded-xl transition-colors"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 bg-primary hover:bg-primary disabled:opacity-30 disabled:cursor-not-allowed text-primary-foreground text-[13px] font-bold px-4 py-1.5 rounded-xl transition-colors"
           >
             Search
           </button>
@@ -380,11 +380,18 @@ function HeroSearch({ onSearch }: { onSearch: (q: string) => void }) {
           <button
             key={s}
             onClick={() => onSearch(s)}
-            className="text-[12px] px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-muted-foreground/60 hover:text-foreground hover:border-white/20 hover:bg-white/8 transition-all"
+            className="text-[12px] px-3 py-1.5 rounded-full bg-card border border-border text-muted-foreground hover:text-foreground hover:border-white/20 hover:bg-white/8 transition-all"
           >
             {s}
           </button>
         ))}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-4xl mt-12">
+        {[
+          ["01", "Find original sources", "Search PubMed publications and registered studies on ClinicalTrials.gov."],
+          ["02", "Compare, don't conclude", "Look for reviews, check who was studied, and read beyond a single result."],
+          ["03", "Build your reading list", "Save papers to your library and discuss relevant findings with your clinician."],
+        ].map(([step, title, detail]) => <div key={step} className="rounded-2xl border border-border bg-card p-5"><span className="text-xs font-bold text-primary">{step}</span><h2 className="font-semibold mt-3 mb-2">{title}</h2><p className="text-sm text-muted-foreground leading-relaxed">{detail}</p></div>)}
       </div>
     </div>
   );
@@ -400,6 +407,8 @@ export default function InsightsPage() {
   const [inputValue, setInputValue] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const searchId = useRef(0);
   const [hasSearched, setHasSearched] = useState(false);
   const [activeFilter, setActiveFilter] = useState("all");
 
@@ -487,6 +496,8 @@ export default function InsightsPage() {
 
     setSearchQuery(q);
     setInputValue(q);
+    const requestId = ++searchId.current;
+    setSearchError(null);
     setSearching(true);
     setHasSearched(true);
     setActiveFilter("all");
@@ -499,13 +510,24 @@ export default function InsightsPage() {
         body: JSON.stringify({ query: q }),
       });
       const data = await res.json();
-      setSearchResults(data.results || []);
-    } catch {
-      setSearchResults([]);
+      if (!res.ok) throw new Error(data.error || "Research search is temporarily unavailable.");
+      if (requestId === searchId.current) setSearchResults(data.results || []);
+    } catch (error) {
+      if (requestId === searchId.current) {
+        setSearchResults([]);
+        setSearchError(error instanceof Error ? error.message : "Could not connect to research sources. Please try again.");
+      }
     } finally {
-      setSearching(false);
+      if (requestId === searchId.current) setSearching(false);
     }
   };
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search).get("q");
+    if (query?.trim()) void handleSearch(query);
+    // Only consume the incoming research question when this page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filteredResults =
     activeFilter === "all"
@@ -623,12 +645,12 @@ export default function InsightsPage() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Search health topics, conditions, treatments…"
-            className="w-full bg-white/[0.03] border border-white/10 focus:border-primary/40 rounded-xl pl-10 pr-24 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors"
+            className="w-full bg-card border border-border focus:border-primary/40 rounded-xl pl-10 pr-24 py-2.5 text-[14px] text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors"
           />
           <button
             type="submit"
             disabled={searching || !inputValue.trim()}
-            className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary hover:bg-primary disabled:opacity-30 text-black text-[12px] font-bold px-3 py-1 rounded-lg transition-colors"
+            className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary hover:bg-primary disabled:opacity-30 text-primary-foreground text-[12px] font-bold px-3 py-1 rounded-lg transition-colors"
           >
             {searching ? "…" : "Search"}
           </button>
@@ -669,7 +691,7 @@ export default function InsightsPage() {
                 className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors ${
                   bookmarkedIds.size > 0
                     ? "text-amber-400 bg-amber-500/10 border border-amber-500/20"
-                    : "text-muted-foreground/40 hover:text-muted-foreground bg-white/5 border border-white/8"
+                    : "text-muted-foreground/40 hover:text-muted-foreground bg-muted/50 border border-border"
                 }`}
               >
                 <BookmarkIcon filled={bookmarkedIds.size > 0} className="w-3 h-3" />
@@ -680,11 +702,16 @@ export default function InsightsPage() {
           </div>
         )}
 
+        <div className="rounded-2xl border border-border bg-card p-4 mb-5 text-sm text-muted-foreground leading-relaxed">
+          <p className="font-semibold text-foreground mb-1">Compare evidence, then ask what applies to you.</p>
+          Abstracts come from the original sources. Study type, population, date, and limitations matter; a matching paper does not establish a diagnosis. Trial registrations describe research, not proven treatments.
+        </div>
+        {searchError && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 mb-4 text-sm"><p>{searchError}</p><button className="mt-2 font-semibold text-primary" onClick={() => handleSearch(searchQuery)}>Try again</button></div>}
         {/* Results list */}
         <div className="space-y-3">
           {searching ? (
             [...Array(6)].map((_, i) => <ResultSkeleton key={i} index={i} />)
-          ) : filteredResults.length === 0 && hasSearched ? (
+          ) : searchError ? null : filteredResults.length === 0 && hasSearched ? (
             <EmptyState query={searchQuery} />
           ) : (
             filteredResults.map((r, i) => (

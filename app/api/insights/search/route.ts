@@ -90,7 +90,7 @@ async function fetchPubMed(query: string): Promise<SearchResult[]> {
       `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=10&sort=relevance&retmode=json`,
       { signal: AbortSignal.timeout(6000) }
     );
-    if (!searchRes.ok) return [];
+    if (!searchRes.ok) throw new Error("PubMed unavailable");
 
     const searchData = await searchRes.json();
     const ids: string[] = searchData.esearchresult?.idlist || [];
@@ -105,7 +105,7 @@ async function fetchPubMed(query: string): Promise<SearchResult[]> {
       fetchPubMedDetails(ids),
     ]);
 
-    if (!summaryRes.ok) return [];
+    if (!summaryRes.ok) throw new Error("PubMed summaries unavailable");
     const summaryData = await summaryRes.json();
     const result = summaryData.result || {};
 
@@ -118,7 +118,7 @@ async function fetchPubMed(query: string): Promise<SearchResult[]> {
 
         // Determine primary type + badges
         let type: SearchResult["type"] = "journal";
-        let primaryBadge = "Peer-Reviewed";
+        let primaryBadge = "PubMed indexed";
         const badges: string[] = [];
 
         if (
@@ -159,7 +159,7 @@ async function fetchPubMed(query: string): Promise<SearchResult[]> {
           primaryBadge = "Literature Review";
           badges.push("Literature Review");
         } else {
-          badges.push("Peer-Reviewed");
+          badges.push("PubMed indexed");
         }
 
         // Authors: take first 3
@@ -189,8 +189,8 @@ async function fetchPubMed(query: string): Promise<SearchResult[]> {
           pmid: id,
         };
       });
-  } catch {
-    return [];
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -202,7 +202,7 @@ async function fetchClinicalTrials(query: string): Promise<SearchResult[]> {
       `https://clinicaltrials.gov/api/v2/studies?query.term=${encodeURIComponent(query)}&pageSize=5&format=json`,
       { signal: AbortSignal.timeout(6000) }
     );
-    if (!res.ok) return [];
+    if (!res.ok) throw new Error("Trial registry unavailable");
 
     const data = await res.json();
     const studies = data.studies || [];
@@ -259,8 +259,8 @@ async function fetchClinicalTrials(query: string): Promise<SearchResult[]> {
         meshTerms: conditions.slice(0, 5),
       };
     });
-  } catch {
-    return [];
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -269,15 +269,19 @@ async function fetchClinicalTrials(query: string): Promise<SearchResult[]> {
 export async function POST(req: Request) {
   try {
     const { query } = await req.json();
-    if (!query?.trim()) {
-      return NextResponse.json({ results: [] });
+    if (typeof query !== "string" || !query.trim() || query.length > 500) {
+      return NextResponse.json({ error: "Enter a research topic of up to 500 characters." }, { status: 400 });
     }
 
-    const [pubmedResults, trialsResults] = await Promise.all([
+    const searches = await Promise.allSettled([
       fetchPubMed(query),
       fetchClinicalTrials(query),
     ]);
 
+    if (searches.some(result => result.status === "rejected")) {
+      return NextResponse.json({ error: "A research source is temporarily unavailable. Please retry to search both PubMed and ClinicalTrials.gov." }, { status: 503 });
+    }
+    const [pubmedResults, trialsResults] = searches.map(result => result.status === "fulfilled" ? result.value : []);
     const seen = new Set<string>();
     const results: SearchResult[] = [];
     for (const r of [...pubmedResults, ...trialsResults]) {

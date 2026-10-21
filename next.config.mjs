@@ -1,12 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    // Don't let lint warnings fail the production (Vercel) build
-    ignoreDuringBuilds: true,
-  },
   images: {
     unoptimized: true,
   },

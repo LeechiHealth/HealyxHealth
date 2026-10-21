@@ -4,7 +4,7 @@ import * as React from "react"
 import { Plus, ArrowUp, Paperclip, Mic, MicOff, Menu, X, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Header } from "@/components/header"
+
 import { useChat, FileAttachment } from "@/hooks/usechat"
 import { prepareFile } from "@/lib/image"
 import { useAuth } from "@/components/AuthContext"
@@ -265,39 +265,18 @@ export function HomeHero() {
 
       {/* Main Content */}
       <div className="relative w-full overflow-hidden">
-        {/* Subtle background accent (no external image) */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-primary/[0.06] to-transparent" />
-
-        {/* Header */}
-        <div className="relative z-20">
-          <div className="flex items-center px-4 sm:px-6 py-4">
-            {messages.length > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSidebarOpen(true)}
-                className="text-muted-foreground hover:text-primary mr-4"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-            )}
-            <div className="flex-1">
-              <Header />
-            </div>
-          </div>
-        </div>
-
+        <div className="flex items-center justify-between px-6 pt-6 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><span>Health companion</span><button onClick={() => setSidebarOpen(true)} className="text-primary normal-case tracking-normal">History</button></div>
         {/* Hero content */}
-        <div className="relative z-10 px-4 sm:px-6 pt-6 pb-2">
-          <div className="mx-auto max-w-3xl flex flex-col items-center">
+        <div className="relative z-10 p-5 sm:p-6">
+          <div className="mx-auto flex flex-col items-center">
 
             {messages.length === 0 && (
-              <div className="text-center mb-6 mt-2">
-                <h1 className="text-foreground text-3xl sm:text-4xl font-light mt-1 text-balance">
-                  Hey {firstName}, <span className="text-gradient-cyan">what&apos;s on your mind?</span>
+              <div className="w-full mb-5">
+                <h1 className="text-foreground text-xl font-semibold tracking-tight mt-1 text-balance">
+                  Your health, <span className="text-primary">in conversation.</span>
                 </h1>
-                <p className="text-muted-foreground mt-3 max-w-xl text-sm sm:text-base leading-relaxed">
-                  Ask me anything about your health, drop in a lab result, or record a visit — I&apos;ll break it down simply.
+                <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">
+                  Make sense of a result, prepare for an appointment, or explore a question.
                 </p>
               </div>
             )}
@@ -329,7 +308,7 @@ export function HomeHero() {
                             />
                           )}
                           {msg.content && (
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                            <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                           )}
                           <p className="text-xs text-muted-foreground mt-1">
                             {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -376,7 +355,7 @@ export function HomeHero() {
                       if (e.key === "Enter" && !loading) handleSend()
                     }}
                     disabled={loading}
-                    className="h-12 pr-20 rounded-full bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground placeholder:text-muted-foreground"
+                    className="h-14 pr-24 rounded-2xl font-medium bg-secondary border-border focus:border-primary/50 focus:ring-primary/20 text-foreground placeholder:text-muted-foreground"
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
 
@@ -469,6 +448,7 @@ export function HomeHero() {
                     {/* Send button */}
                     <Button
                       size="icon"
+                      aria-label="Send message"
                       onClick={handleSend}
                       disabled={loading || (!input.trim() && !attachedFile)}
                       className="h-8 w-8 rounded-full bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 glow-cyan disabled:opacity-50"

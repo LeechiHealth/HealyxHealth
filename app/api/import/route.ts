@@ -202,7 +202,7 @@ function parseAppleHealthXML(xml: string): VitalEntry[] {
 
     let mappedUnit = unit
     if (unit === 'count/min') mappedUnit = 'bpm'
-    else if (unit === 'count') mappedUnit = unit === 'steps' ? 'steps' : 'count'
+    else if (unit === 'count') mappedUnit = hkType === 'HKQuantityTypeIdentifierStepCount' ? 'steps' : 'count'
 
     entries.push({ type: mapped, value, unit: mappedUnit, recorded_at: startDate })
   }

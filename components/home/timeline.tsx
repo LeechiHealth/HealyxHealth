@@ -94,11 +94,11 @@ export function Timeline({ showViewAllLink = true, limit = 8 }: TimelineProps) {
   }
 
   return (
-    <div className="mt-6 rounded-3xl glass-darker overflow-hidden">
+    <div className="health-panel overflow-hidden">
       <div className="flex items-center px-6 py-5 border-b border-border">
-        <h2 className="text-lg font-semibold text-foreground">Recent Activity</h2>
+        <h2 className="text-lg font-semibold text-foreground">Your health timeline</h2>
         {!loading && items.length > 0 && (
-          <span className="ml-2 text-xs text-muted-foreground/50">{items.length} events</span>
+          <span className="ml-2 text-xs text-muted-foreground">{items.length} events</span>
         )}
       </div>
       <div className="px-6 py-4">
@@ -106,10 +106,10 @@ export function Timeline({ showViewAllLink = true, limit = 8 }: TimelineProps) {
           <div className="space-y-3 py-2">
             {[0,1,2].map(i => (
               <div key={i} className="flex items-start gap-4 py-3 animate-pulse">
-                <div className="h-10 w-10 rounded-lg bg-white/5 flex-shrink-0" />
+                <div className="h-10 w-10 rounded-lg bg-secondary flex-shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 bg-white/8 rounded-full w-2/3" />
-                  <div className="h-3 bg-white/5 rounded-full w-1/2" />
+                  <div className="h-3 bg-secondary rounded-full w-2/3" />
+                  <div className="h-3 bg-secondary rounded-full w-1/2" />
                 </div>
               </div>
             ))}
@@ -117,7 +117,7 @@ export function Timeline({ showViewAllLink = true, limit = 8 }: TimelineProps) {
         ) : items.length === 0 ? (
           <div className="py-10 text-center">
             <p className="text-sm text-muted-foreground">No activity yet</p>
-            <p className="text-xs text-muted-foreground/50 mt-1">Add lab results, vitals, documents, or record a visit note</p>
+            <p className="text-xs text-muted-foreground mt-1">Add lab results, vitals, documents, or record a visit note</p>
           </div>
         ) : (
           <div className="space-y-1">
@@ -133,7 +133,7 @@ export function Timeline({ showViewAllLink = true, limit = 8 }: TimelineProps) {
                     <p className="text-sm font-medium text-foreground">{item.title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.subtitle}</p>
                   </div>
-                  <span className="text-xs text-muted-foreground/60 shrink-0 pt-0.5">{item.displayDate}</span>
+                  <span className="text-xs text-muted-foreground shrink-0 pt-0.5">{item.displayDate}</span>
                 </div>
               )
             })}

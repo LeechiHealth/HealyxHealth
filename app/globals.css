@@ -182,3 +182,11 @@
   backdrop-filter: blur(16px);
   border: 1px solid color-mix(in oklch, var(--border) 55%, transparent);
 }
+
+/* Health workspace: restrained surfaces, clear hierarchy, motion with purpose. */
+.dashboard-shell { background: radial-gradient(ellipse at 90% 0%, color-mix(in oklch, var(--primary) 5%, transparent), transparent 45%), var(--background); }
+.health-panel { background: var(--card); border: 1px solid var(--border); border-radius: 1.35rem; box-shadow: 0 4px 24px color-mix(in oklch, var(--foreground) 3%, transparent); }
+.eyebrow { font-size: 10px; font-weight: 650; letter-spacing: .16em; text-transform: uppercase; color: var(--muted-foreground); }
+.dashboard-enter { animation: dashboard-reveal .6s ease-out both; }
+@keyframes dashboard-reveal { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .dashboard-enter { animation: none; } *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }

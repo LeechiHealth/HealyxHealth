@@ -98,7 +98,7 @@ function extractPdfTextFromBuffer(buffer: Buffer): string {
 // ── Route handler ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
 
     // Validate input
     const parsed = ChatSchema.safeParse(body)
@@ -108,8 +108,16 @@ export async function POST(request: NextRequest) {
 
     const { message, fileData, conversationHistory, healthContext } = parsed.data
 
-    if (!message && !fileData) {
+    if (!message?.trim() && !fileData) {
       return NextResponse.json({ error: 'Message or file required' }, { status: 400 })
+    }
+
+    if (fileData && !['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(fileData.mimeType)) {
+      return NextResponse.json({ error: 'Please attach a PDF, JPEG, PNG, or WebP image.' }, { status: 400 })
+    }
+
+    if (!process.env.GROQ_API_KEY?.trim()) {
+      return NextResponse.json({ error: 'Your health guide is not connected yet. The site administrator needs to configure GROQ_API_KEY on the server.', code: 'AI_NOT_CONFIGURED' }, { status: 503 })
     }
 
     // Personalize: fold the user's health record into the system prompt
@@ -163,7 +171,7 @@ export async function POST(request: NextRequest) {
       if (extracted && extracted.length > 20) {
         userContent = `[PDF: ${fileData.name || 'document.pdf'}]\n\nContent:\n${extracted}\n\n${userText || 'Please analyze this document and explain the key health findings in plain English.'}`
       } else {
-        userContent = `[PDF: ${fileData.name || 'document.pdf'}] — could not extract text (likely a scanned image). ${userText || 'What should I look for in this type of document?'}`
+        return NextResponse.json({ error: 'This PDF has no readable text. Upload a clear JPEG or PNG of the relevant page so the guide can read it.' }, { status: 422 })
       }
     } else if (fileData) {
       userContent = `[File: ${fileData.name || 'file'}]\n\n${userText || 'Please help me understand this document.'}`
@@ -187,11 +195,14 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const raw = error as any
     const status: number = raw?.status ?? raw?.response?.status ?? 500
-    const msg: string = raw?.message ?? 'Failed to generate response'
-    console.error(`[chat/route] ${status}: ${msg}`)
+    // Do not return provider internals or health data to the browser or logs.
+    console.error('[chat/route] Request failed', { status, type: raw?.name || 'Error' })
     if (status === 429) {
-      return NextResponse.json({ error: 'Rate limit reached. Please wait a moment and try again.' }, { status: 429 })
+      return NextResponse.json({ error: 'The health guide is busy. Please wait a moment and try again.' }, { status: 429 })
     }
-    return NextResponse.json({ error: msg }, { status: status >= 400 && status < 600 ? status : 500 })
+    if (status === 401 || status === 403 || raw?.message === 'AI_NOT_CONFIGURED') {
+      return NextResponse.json({ error: 'Your health guide is not connected. The site administrator needs to check the server AI credentials.', code: 'AI_NOT_CONFIGURED' }, { status: 503 })
+    }
+    return NextResponse.json({ error: 'The health guide could not respond right now. Please try again shortly.' }, { status: 502 })
   }
 }

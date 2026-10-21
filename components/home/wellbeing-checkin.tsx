@@ -28,6 +28,8 @@ export function WellbeingCheckin() {
   const [open, setOpen] = React.useState(false)
   const [answers, setAnswers] = React.useState<(number | null)[]>([null, null, null, null, null])
   const [saving, setSaving] = React.useState(false)
+  const [saveError, setSaveError] = React.useState<string | null>(null)
+  const [step, setStep] = React.useState(0)
 
   React.useEffect(() => {
     if (!user) return
@@ -44,6 +46,7 @@ export function WellbeingCheckin() {
 
   async function save() {
     if (!user || !complete || saving) return
+    setSaveError(null)
     setSaving(true)
     const { error } = await supabase.from("qol_responses").insert({
       user_id: user.id, instrument: "who5", item_scores: answers, raw_score: raw, score,
@@ -53,22 +56,23 @@ export function WellbeingCheckin() {
       setOpen(false)
       setAnswers([null, null, null, null, null])
     }
+    if (error) setSaveError("Your reflection could not be saved. Please try again.")
     setSaving(false)
   }
 
   return (
-    <section className="mt-4">
-      <div className="rounded-2xl border border-border bg-card p-4">
+    <section>
+      <div className="health-panel p-5">
         <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 text-left">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 shrink-0">
             <Smile className="h-5 w-5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground">Well-being check-in</p>
+            <p className="text-sm font-medium text-foreground">The human side</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {latest?.score != null
-                ? `Last score ${latest.score}/100 · how are you really doing?`
-                : "A quick, validated 5-question pulse on how you feel"}
+                ? `Your last WHO-5 reflection: ${latest.score}/100`
+                : "Step back from the numbers. Reflect on your last two weeks."}
             </p>
           </div>
           <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
@@ -76,8 +80,10 @@ export function WellbeingCheckin() {
 
         {open && (
           <div className="mt-4 pt-4 border-t border-border space-y-4">
+            <p className="text-xs text-muted-foreground">WHO-5 reflection · question {step + 1} of 5</p>
+            <div className="flex gap-1">{QUESTIONS.map((_, i) => <button key={i} aria-label={`Go to question ${i + 1}`} onClick={() => setStep(i)} className={`h-1.5 flex-1 rounded-full ${answers[i] != null ? "bg-primary" : "bg-secondary"}`} />)}</div>
             <p className="text-xs text-muted-foreground">Over the last two weeks…</p>
-            {QUESTIONS.map((q, qi) => (
+            {QUESTIONS.map((q, qi) => qi === step && (
               <div key={qi}>
                 <p className="text-sm text-foreground mb-2">{q}</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -85,7 +91,7 @@ export function WellbeingCheckin() {
                     const sel = answers[qi] === o.v
                     return (
                       <button key={o.v}
-                        onClick={() => setAnswers((prev) => prev.map((a, i) => (i === qi ? o.v : a)))}
+                        onClick={() => { setAnswers((prev) => prev.map((a, i) => (i === qi ? o.v : a))); if (qi < 4) setStep(qi + 1) }}
                         className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${sel ? "border-primary bg-primary/20 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
                         {o.label}
                       </button>
@@ -99,9 +105,11 @@ export function WellbeingCheckin() {
               <button onClick={save} disabled={!complete || saving}
                 className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40">
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                Save check-in
+                Save reflection
               </button>
             </div>
+            {saveError && <p className="text-xs text-destructive" role="alert">{saveError}</p>}
+            <p className="text-[11px] text-muted-foreground">WHO-5: five answers scored 0–5, summed and multiplied by 4. A reflection on well-being, separate from your cardiometabolic score.</p>
             {complete && score < 50 && (
               <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
                 A lower score here can be an early signal of low mood. It might help to talk it through with someone you trust or your doctor.

@@ -74,7 +74,7 @@ export function useChat() {
   const [conversationId, setConversationId] = useState<string | null>(null)
 
   const sendMessage = async (content: string, fileData?: FileAttachment) => {
-    if (!user || (!content.trim() && !fileData)) return
+    if (!user || loading || (!content.trim() && !fileData)) return
 
     setLoading(true)
 
@@ -122,7 +122,7 @@ export function useChat() {
       }
 
       // Build conversation history for context (last 10 turns)
-      const history = messages.slice(-10).map(m => ({ role: m.role, content: m.content }))
+      const history = messages.filter(m => !m.isError).slice(-10).map(m => ({ role: m.role, content: m.content.slice(0, 4000) }))
 
       // Pull the user's personalized health record so the AI can speak to it
       const healthContext = await buildHealthContext(user.id, user.email)
@@ -131,14 +131,17 @@ export function useChat() {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, fileData, conversationHistory: history, healthContext }),
+        body: JSON.stringify({ message: content, fileData, conversationHistory: history, healthContext: healthContext.slice(0, 12000) }),
+        signal: AbortSignal.timeout(60_000),
       })
 
-      const data = await response.json()
+      const data = await response.json().catch(() => ({ error: 'The health guide returned an unreadable response. Please try again shortly.' }))
 
       if (!response.ok) {
         throw new Error(data.error || `API error ${response.status}`)
       }
+
+      if (!data.reply?.trim()) throw new Error('The health guide returned an empty response. Please try again.')
 
       if (data.reply) {
         const aiMsg = {
@@ -159,15 +162,19 @@ export function useChat() {
         }
       }
     } catch (error) {
-      console.error('Chat error:', error)
-      const msg = error instanceof Error ? error.message : 'Unknown error'
+      const msg = error instanceof TypeError
+        ? 'Could not reach the health guide. Check your connection and try again.'
+        : error instanceof Error ? error.message : 'The health guide could not respond. Please try again.'
       const isQuota = msg.toLowerCase().includes('429') || msg.toLowerCase().includes('rate')
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         role: 'assistant',
+        isError: true,
         content: isQuota
           ? '⚠️ AI rate limit reached. Please wait a moment and try again.'
-          : `Sorry, something went wrong: ${msg}. Please try again.`,
+          : error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name)
+            ? 'The health guide took too long to respond. Please try again.'
+            : msg,
         created_at: new Date().toISOString(),
       }])
     } finally {

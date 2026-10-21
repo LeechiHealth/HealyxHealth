@@ -5,7 +5,6 @@ import { Header } from "@/components/header"
 import { ProtocolIntake } from "@/components/protocol/protocol-intake"
 import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/components/AuthContext"
-import { loadHealthScore, type LoadedHealthScore } from "@/lib/clientHealth"
 import {
   Footprints, Utensils, Pill, Moon, Wind, Ban, Activity,
   Sparkles, Check, RefreshCw, Loader2, List, LayoutGrid, CalendarDays,
@@ -68,7 +67,6 @@ export default function ProtocolPage() {
   const [intake, setIntake] = React.useState<any>(null)
   const [intakeOpen, setIntakeOpen] = React.useState(false)
   const [basedOnOpen, setBasedOnOpen] = React.useState(false)
-  const [liveScore, setLiveScore] = React.useState<LoadedHealthScore | null>(null)
 
   const week = React.useMemo(() => currentWeek(), [])
   const monthGrid = React.useMemo(() => buildMonthGrid(new Date()), [])
@@ -90,7 +88,6 @@ export default function ProtocolPage() {
       .eq("user_id", user.id).eq("completed", true).order("completed_at", { ascending: false }).limit(1).maybeSingle()
     setIntake(ik || null)
 
-    loadHealthScore(user.id).then(setLiveScore).catch(() => setLiveScore(null))
 
     if (active) {
       const [{ data: t }, { data: comps }] = await Promise.all([
@@ -238,8 +235,8 @@ export default function ProtocolPage() {
 
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-2xl font-medium text-foreground">Your Protocol</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">A few specific, evidence-based actions built from your data.</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Your protocol</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Turn your health context into a focused, trackable routine.</p>
           </div>
           {protocol && (
             <button onClick={() => setIntakeOpen(true)} disabled={generating}
@@ -263,7 +260,7 @@ export default function ProtocolPage() {
             </div>
             <h2 className="text-lg font-medium text-foreground">Build your wellness protocol</h2>
             <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-              Healyx reads your profile, conditions, medications, and labs, then gives you a short, prioritized plan — and tracks whether it&apos;s working.
+              Healyx reads your profile, conditions, medications, and labs, then gives you a short, prioritized plan. Log your actions and revisit your measurements to see what changes.
             </p>
             <button onClick={() => setIntakeOpen(true)} disabled={generating}
               className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50">
@@ -275,19 +272,14 @@ export default function ProtocolPage() {
           </div>
         ) : (
           <>
-            <div className="rounded-2xl border border-health-optimal/20 bg-health-optimal/[0.06] p-5 mb-4">
-              <div className="flex items-start gap-4">
-                <div className="text-center shrink-0">
-                  <p className="text-3xl font-medium text-foreground leading-none">{Math.round(liveScore?.score ?? protocol.health_score ?? 0)}</p>
-                  <p className="text-[11px] text-health-optimal/90 mt-1">score</p>
-                  {protocol.health_score_target != null && (
-                    <p className="text-[11px] text-muted-foreground mt-1">target {Math.round(protocol.health_score_target)}</p>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Your snapshot</p>
-                  <p className="text-sm text-foreground/90 leading-relaxed">{protocol.plain_summary || "Your personalized protocol is ready."}</p>
-                </div>
+            <div className="rounded-3xl border border-border bg-card p-6 sm:p-8 mb-6">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-3">From understanding to action</p>
+              <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight mb-3">Small steps. A plan you can follow.</h2>
+              <p className="text-sm text-muted-foreground leading-relaxed max-w-2xl">{protocol.plain_summary || "Your personalized protocol is ready. Start with one action and keep a record of what changes."}</p>
+              <div className="grid sm:grid-cols-3 gap-3 mt-6">
+                <div className="rounded-2xl border border-border bg-background/60 p-4"><p className="text-xs text-muted-foreground mb-2">Today's checklist</p><p className="text-2xl font-semibold">{completedCount}<span className="text-base text-muted-foreground"> / {tasks.length}</span></p><div role="progressbar" aria-label="Today's checklist completion" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${pct}%` }} /></div><p className="text-xs text-muted-foreground mt-2">Actions logged, not a health score</p></div>
+                <div className="rounded-2xl border border-border bg-background/60 p-4"><p className="text-xs text-muted-foreground mb-2">Your next action</p><p className="text-sm font-semibold leading-relaxed">{tasks.find(t => !done.has(`${t.id}|${todayStr()}`))?.task_name || (tasks.length ? "Today's checklist is complete" : "No actions in this plan yet")}</p><a href="#protocol-actions" className="inline-block text-xs font-semibold text-primary mt-3">View your actions →</a></div>
+                <div className="rounded-2xl border border-border bg-background/60 p-4"><p className="text-xs text-muted-foreground mb-2">Review your progress</p><p className="text-sm font-semibold">{protocol.retest_date || "Set at your next review"}</p><p className="text-xs text-muted-foreground leading-relaxed mt-2">Compare new measurements and discuss changes before updating your plan.</p></div>
               </div>
             </div>
 
@@ -322,7 +314,7 @@ export default function ProtocolPage() {
                     <div key={i} className="rounded-xl border border-border bg-card p-3.5">
                       <p className="text-sm font-medium text-foreground">{c.label}</p>
                       {c.plain && <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{c.plain}</p>}
-                      {c.research && <p className="text-xs text-primary/90 mt-1.5 leading-relaxed"><span className="font-medium">What the research says:</span> {c.research}</p>}
+                      {c.research && <p className="text-xs text-primary/90 mt-1.5 leading-relaxed"><span className="font-medium">Generated research context:</span> {c.research} <a className="underline underline-offset-2" href={`/insights?q=${encodeURIComponent(c.label || "health")}`}>Explore original sources</a></p>}
                     </div>
                   ))}
                 </div>
@@ -397,6 +389,7 @@ export default function ProtocolPage() {
                   )
                 })}
               </div>
+              <span id="protocol-actions" className="scroll-mt-24" />
               {view === "list" && <p className="text-xs text-muted-foreground">{completedCount}/{tasks.length} done today · {pct}%</p>}
             </div>
 
@@ -563,9 +556,9 @@ export default function ProtocolPage() {
               </>
             )}
 
-            {/* Then we redo it */}
+            {/* Review, learn, adjust */}
             <div className="mt-6 rounded-xl border border-border bg-card/60 p-4">
-              <p className="text-sm font-medium text-foreground mb-1">Then we redo it</p>
+              <p className="text-sm font-medium text-foreground mb-1">Review, learn, adjust</p>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 {protocol.report?.what_changes_next || "In about 4 weeks we'll re-check your numbers and adjust the plan based on what changed."}
                 {" "}Recheck around {protocol.retest_date || "4 weeks"}, then hit Regenerate.

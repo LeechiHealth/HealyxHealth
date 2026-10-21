@@ -1,37 +1,27 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Healyx Health Score
-//
-// Based on the American Heart Association's **Life's Essential 8 (LE8)** — a
-// peer-reviewed, validated 0–100 composite of cardiovascular/metabolic health.
-// It blends 4 OBJECTIVE measured factors (blood pressure, lipids, blood glucose,
-// body weight) with 4 SUBJECTIVE behaviors (physical activity, sleep, nicotine,
-// diet). Each component is scored 0–100 on AHA bands; the overall score is the
-// unweighted average of the components we actually have data for (the published
-// LE8 incomplete-data method). High 80–100, moderate 50–79, low 0–49.
-//
-// Sources: AHA Life's Essential 8 (Circulation 2022); LE8 incomplete-data
-// estimation (medRxiv 2023). This is wellness scoring, not a diagnostic device.
-// ─────────────────────────────────────────────────────────────────────────────
+// Healyx wellness indicator: a simplified, seven-factor adaptation inspired by
+// AHA Life’s Essential 8. Diet is not collected; treatment/history adjustments
+// are not implemented. This is NOT a validated LE8 score or overall health rating.
+// Available components are equally weighted. Missing values are excluded.
 
 export type Component = { key: string; label: string; kind: "measured" | "behavior"; score: number | null }
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)))
 
 export const scoreBMI = (bmi?: number | null) =>
-  bmi == null ? null : bmi < 25 ? 100 : bmi < 30 ? 70 : bmi < 35 ? 30 : bmi < 40 ? 15 : 0
+  bmi == null || !Number.isFinite(bmi) || bmi <= 0 ? null : bmi < 25 ? 100 : bmi < 30 ? 70 : bmi < 35 ? 30 : bmi < 40 ? 15 : 0
 
 export function scoreBP(sys?: number | null, dia?: number | null) {
-  if (sys == null && dia == null) return null
-  const s = sys ?? 0, d = dia ?? 0
-  if (s < 120 && d < 80) return 100
-  if (s < 130 && d < 80) return 75
-  if ((s >= 130 && s < 140) || (d >= 80 && d < 90)) return 50
-  if ((s >= 140 && s < 160) || (d >= 90 && d < 100)) return 25
-  return 0
+  if (sys == null || dia == null || !Number.isFinite(sys) || !Number.isFinite(dia) || sys <= 0 || dia <= 0) return null
+  // The more severe of either reading determines the band.
+  if (sys >= 160 || dia >= 100) return 0
+  if (sys >= 140 || dia >= 90) return 25
+  if (sys >= 130 || dia >= 80) return 50
+  if (sys >= 120) return 75
+  return 100
 }
 
 export function scoreGlucose(hba1c?: number | null, fasting?: number | null) {
-  if (hba1c != null) {
+  if (hba1c != null && Number.isFinite(hba1c) && hba1c > 0) {
     if (hba1c < 5.7) return 100
     if (hba1c < 6.5) return 60
     if (hba1c < 7) return 40
@@ -40,7 +30,7 @@ export function scoreGlucose(hba1c?: number | null, fasting?: number | null) {
     if (hba1c < 10) return 10
     return 0
   }
-  if (fasting != null) {
+  if (fasting != null && Number.isFinite(fasting) && fasting > 0) {
     if (fasting < 100) return 100
     if (fasting < 126) return 60
     if (fasting < 160) return 40
@@ -51,10 +41,10 @@ export function scoreGlucose(hba1c?: number | null, fasting?: number | null) {
 }
 
 export const scoreLipids = (nonHDL?: number | null) =>
-  nonHDL == null ? null : nonHDL < 130 ? 100 : nonHDL < 160 ? 60 : nonHDL < 190 ? 40 : nonHDL < 220 ? 20 : 0
+  nonHDL == null || !Number.isFinite(nonHDL) || nonHDL < 0 ? null : nonHDL < 130 ? 100 : nonHDL < 160 ? 60 : nonHDL < 190 ? 40 : nonHDL < 220 ? 20 : 0
 
 export function scoreSleep(hrs?: number | null) {
-  if (hrs == null) return null
+  if (hrs == null || !Number.isFinite(hrs) || hrs < 0 || hrs > 24) return null
   if (hrs >= 7 && hrs < 9) return 100
   if (hrs >= 9 && hrs < 10) return 90
   if (hrs >= 6 && hrs < 7) return 70
@@ -64,7 +54,7 @@ export function scoreSleep(hrs?: number | null) {
 }
 
 export function scoreActivity(minPerWeek?: number | null) {
-  if (minPerWeek == null) return null
+  if (minPerWeek == null || !Number.isFinite(minPerWeek) || minPerWeek < 0) return null
   if (minPerWeek >= 150) return 100
   if (minPerWeek >= 120) return 90
   if (minPerWeek >= 90) return 80
@@ -105,9 +95,9 @@ export function computeHealthScore(input: HealthInputs) {
     { key: "sleep", label: "Sleep", kind: "behavior", score: scoreSleep(input.sleepHours) },
     { key: "nicotine", label: "Nicotine", kind: "behavior", score: scoreNicotine(input.nicotine) },
   ]
-  const present = components.filter(c => c.score != null)
+  const present = components.filter(c => c.score != null && Number.isFinite(c.score))
   const score = present.length ? clamp(present.reduce((a, c) => a + (c.score as number), 0) / present.length) : 0
-  const grade = score >= 80 ? "Good" : score >= 50 ? "Fair" : score > 0 ? "Needs work" : "—"
+  const grade = !present.length ? "Not enough data" : score >= 80 ? "Higher range" : score >= 50 ? "Middle range" : "Lower range"
   // weakest measured components, for "what's dragging the score"
   const weakest = present.filter(c => (c.score as number) < 60).sort((a, b) => (a.score as number) - (b.score as number))
   return { score, grade, components, present, weakest, measured: present.length, total: components.length }
