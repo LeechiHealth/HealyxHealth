@@ -17,4 +17,13 @@ export const groq = new Proxy({} as Groq, {
   },
 })
 
-export const GROQ_MODEL = 'llama-3.3-70b-versatile'
+// Groq retired llama-3.3-70b-versatile. Override with GROQ_MODEL without a code change.
+export const GROQ_MODEL = process.env.GROQ_MODEL?.trim() || 'openai/gpt-oss-120b'
+
+// Groq retired meta-llama/llama-4-scout-17b-16e-instruct. Override with GROQ_VISION_MODEL.
+export const GROQ_VISION_MODEL = process.env.GROQ_VISION_MODEL?.trim() || 'qwen/qwen3.8-27b'
+
+/** Removes any <think> reasoning block some models put before the answer. */
+export function stripReasoning(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+}

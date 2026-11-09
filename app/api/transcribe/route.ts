@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { groq } from '@/lib/groq/client'
 import { toFile } from 'groq-sdk'
 import { z } from 'zod'
+import { authenticateRequest } from '@/lib/serverAuth'
 
 const TranscribeSchema = z.object({
   base64: z.string().min(1).max(15_000_000),
@@ -9,6 +10,9 @@ const TranscribeSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  // Signed-in users only, so the server's Groq credential can't be used anonymously.
+  const auth = await authenticateRequest(req)
+  if (auth.response) return auth.response
   try {
     const body = await req.json()
     const parsed = TranscribeSchema.safeParse(body)
@@ -31,7 +35,8 @@ export async function POST(req: NextRequest) {
 
     const transcription = await groq.audio.transcriptions.create({
       file: audioFile,
-      model: 'distil-whisper-large-v3-en',
+      // Groq retired distil-whisper-large-v3-en.
+      model: process.env.GROQ_WHISPER_MODEL?.trim() || 'whisper-large-v3-turbo',
       language: 'en',
       response_format: 'json',
       // Prompt reduces hallucinations by setting context for Whisper

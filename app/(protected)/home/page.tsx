@@ -6,7 +6,7 @@ import { Timeline } from "@/components/home/timeline"
 import { Header } from "@/components/header"
 import { useAuth } from "@/components/AuthContext"
 import Link from "next/link"
-import { ArrowUpRight, FileHeart, BookOpen, ListChecks } from "lucide-react"
+import { ArrowUpRight, FileHeart, BookOpen, Bot } from "lucide-react"
 
 export default function HomePage() {
   const { user } = useAuth()
@@ -22,7 +22,7 @@ export default function HomePage() {
         <div className="grid lg:grid-cols-[minmax(0,1.45fr)_minmax(340px,1fr)] gap-6 items-start">
           <div className="space-y-6"><HealthSnapshot /><Timeline limit={4} /></div>
           <aside className="space-y-5 lg:sticky lg:top-6"><div className="health-panel overflow-hidden"><HomeHero /></div>
-            <div className="health-panel p-5"><p className="eyebrow mb-3">Make your next move</p>{[{ href: "/data", icon: FileHeart, title: "Build your health record", text: "Labs, vitals, and visit notes in one place." }, { href: "/insights", icon: BookOpen, title: "Follow the evidence", text: "Explore research behind your questions." }, { href: "/protocol", icon: ListChecks, title: "Turn information into action", text: "Review the factors behind your plan." }].map(a => <Link key={a.href} href={a.href} className="flex items-center gap-3 py-3.5 border-b border-border last:border-0 group"><a.icon className="h-5 w-5 text-primary shrink-0" /><div className="flex-1"><p className="text-sm font-semibold group-hover:text-primary transition-colors">{a.title}</p><p className="text-xs text-muted-foreground mt-1">{a.text}</p></div><ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" /></Link>)}</div>
+            <div className="health-panel p-5"><p className="eyebrow mb-3">Make your next move</p>{[{ href: "/data", icon: FileHeart, title: "Build your health record", text: "Labs, vitals, and visit notes in one place." }, { href: "/insights", icon: BookOpen, title: "Follow the evidence", text: "Explore research behind your questions." }, { href: "/agents", icon: Bot, title: "Hand off the follow-through", text: "Agents for appointments, refills, reminders and research." }].map(a => <Link key={a.href} href={a.href} className="flex items-center gap-3 py-3.5 border-b border-border last:border-0 group"><a.icon className="h-5 w-5 text-primary shrink-0" /><div className="flex-1"><p className="text-sm font-semibold group-hover:text-primary transition-colors">{a.title}</p><p className="text-xs text-muted-foreground mt-1">{a.text}</p></div><ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" /></Link>)}</div>
 
           </aside>
         </div>

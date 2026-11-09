@@ -12,7 +12,7 @@ const navItems = [
   { name: "Overview", href: "/home" },
   { name: "Health Records", href: "/data" },
   { name: "Research", href: "/insights" },
-  { name: "Protocol", href: "/protocol" },
+  { name: "Agents", href: "/agents" },
 ]
 
 export function Header() {

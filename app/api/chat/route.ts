@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { groq, GROQ_MODEL } from '@/lib/groq/client'
+import { groq, GROQ_MODEL, GROQ_VISION_MODEL, stripReasoning } from '@/lib/groq/client'
 import { z } from 'zod'
 import { authenticateRequest } from '@/lib/serverAuth'
 import { inflateSync, inflateRawSync } from 'zlib'
 
-const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
 
 const SYSTEM_PROMPT = `You are the Healyx health guide — warm, encouraging, and refreshingly easy to talk to. Healthcare usually feels cold and clinical; you are the opposite of that.
 
@@ -153,7 +152,7 @@ export async function POST(request: NextRequest) {
       const textPrompt = userText || 'Please analyze this health document or image and explain what it shows. Highlight any important values, findings, or things I should discuss with my doctor.'
 
       const completion = await groq.chat.completions.create({
-        model: VISION_MODEL,
+        model: GROQ_VISION_MODEL,
         messages: [
           { role: 'system', content: effectiveSystemPrompt },
           ...historyMessages,
@@ -169,7 +168,7 @@ export async function POST(request: NextRequest) {
         temperature: 0.7,
       })
 
-      const reply = completion.choices[0]?.message?.content?.trim()
+      const reply = stripReasoning(completion.choices[0]?.message?.content || '')
       if (!reply) return NextResponse.json({ error: 'Empty response from model' }, { status: 500 })
       return NextResponse.json({ reply })
     }
@@ -199,7 +198,7 @@ export async function POST(request: NextRequest) {
       temperature: 0.7,
     })
 
-    const reply = completion.choices[0]?.message?.content?.trim()
+    const reply = stripReasoning(completion.choices[0]?.message?.content || '')
     if (!reply) return NextResponse.json({ error: 'Empty response from model' }, { status: 500 })
     return NextResponse.json({ reply })
 
