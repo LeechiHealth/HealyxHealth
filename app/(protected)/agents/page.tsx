@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import {
-  ArrowUp, BellRing, CalendarClock, Check, ChevronLeft, ChevronRight, Clock, FileText, Loader2, Mic,
+  ArrowUp, BellRing, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, FileText, Loader2, Mic,
   PanelRight, CalendarPlus, Pill, Plug, Plus, Search, ShoppingBag, Square, X, type LucideIcon,
 } from "lucide-react"
 import { Header } from "@/components/header"
@@ -14,7 +14,9 @@ import { supabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { AGENTS, AGENT_IDS, CONNECTIONS, agentById, type AgentId } from "@/lib/agents/config"
 import { formatClock, formatLocalDate, formatLocalDateTime, localNow } from "@/lib/agents/dates"
-import type { AgentMessage, AgentTask, TaskKind, TaskStatus } from "@/lib/agents/tasks"
+import type { AgentMessage, AgentTask, MessageMeta, TaskKind, TaskStatus } from "@/lib/agents/tasks"
+
+type LiveStep = { id: string; label: string; status: "running" | "done" | "error" }
 
 type ThreadMessage = AgentMessage & { urgent?: "emergency" | "crisis"; taskIds?: string[] }
 type Threads = Record<AgentId, ThreadMessage[]>
@@ -86,6 +88,54 @@ function routinesFor(tasks: AgentTask[]): Routine[] {
   return routines
 }
 
+const seconds = (ms?: number) => `${Math.max(1, Math.round((ms || 0) / 1000))}s`
+
+/** What the agent did: live while it works, then a collapsible "Worked for 42s" summary. */
+function WorkLog({ steps, durationMs, live }: { steps: { label: string; status: string }[]; durationMs?: number; live?: boolean }) {
+  const [open, setOpen] = React.useState(Boolean(live))
+  if (!steps.length && !live) return null
+  return (
+    <div className="max-w-[85%]">
+      <button type="button" onClick={() => setOpen(o => !o)} disabled={live} aria-expanded={open || live}
+        className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground">
+        {live ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : null}
+        {live ? `Working${durationMs ? ` for ${seconds(durationMs)}` : ""}` : `Worked for ${seconds(durationMs)}`}
+        {steps.length > 0 && <span>· {steps.length} {steps.length === 1 ? "step" : "steps"}</span>}
+        {!live && steps.length > 0 && <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />}
+      </button>
+      {(open || live) && steps.length > 0 && (
+        <ol className="mt-2 space-y-1.5 border-l border-border pl-3">
+          {steps.map((step, i) => (
+            <li key={i} className="flex items-start gap-2 text-[13px]">
+              {step.status === "running" ? <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+                : step.status === "error" ? <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-health-warning" />
+                : <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-health-normal" />}
+              <span className={step.status === "running" ? "text-foreground" : "text-muted-foreground"}>{step.label}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+function SourceChips({ sources }: { sources?: { title: string; url: string }[] }) {
+  if (!sources?.length) return null
+  return (
+    <div className="flex max-w-[85%] flex-wrap gap-1.5">
+      {sources.map(source => {
+        let host = source.title
+        try { if (!/\./.test(host)) host = new URL(source.url).hostname.replace(/^www\./, "") } catch { /* keep title */ }
+        return (
+          <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40">
+            {host}<ExternalLink className="h-3 w-3" />
+          </a>
+        )
+      })}
+    </div>
+  )
+}
+
 function ConnectionsList() {
   return (
     <ul className="space-y-3">
@@ -93,7 +143,7 @@ function ConnectionsList() {
         <li key={c.name} className="text-xs">
           <span className="flex items-center justify-between gap-3">
             <span className="font-semibold text-foreground">{c.name}</span>
-            <span className={cn("shrink-0 text-[10px] font-semibold", c.status === "works" ? "text-health-normal" : "text-muted-foreground")}>{c.status === "works" ? "Works now" : "Not connected"}</span>
+            <span className={cn("shrink-0 text-[10px] font-semibold", c.status === "works" ? "text-health-normal" : "text-muted-foreground")}>{c.status === "works" ? "Works now" : c.status === "coming" ? "Coming next" : "Not connected"}</span>
           </span>
           <span className="block text-[11px] text-muted-foreground mt-0.5">{c.detail}</span>
         </li>
@@ -119,6 +169,9 @@ export default function AgentsPage() {
   const [focusTaskId, setFocusTaskId] = React.useState<string | null>(null)
   const [showStarters, setShowStarters] = React.useState(false)
   const [showConnections, setShowConnections] = React.useState(false)
+  const [liveSteps, setLiveSteps] = React.useState<LiveStep[]>([])
+  const [runStarted, setRunStarted] = React.useState(0)
+  const [, setTick] = React.useState(0)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const inputRef = React.useRef<HTMLTextAreaElement>(null)
   const voice = useVoiceInput(text => { setDraft(prev => (prev.trim() ? `${prev.trim()} ${text}` : text)); inputRef.current?.focus() })
@@ -142,7 +195,10 @@ export default function AgentsPage() {
     let cancelled = false
     ;(async () => {
       const [messages, saved] = await Promise.all([
-        supabase.from("agent_messages").select("id, agent, role, content, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(200),
+        supabase.from("agent_messages").select("id, agent, role, content, created_at, meta").eq("user_id", user.id).order("created_at", { ascending: false }).limit(200)
+          .then(result => result.error && /column|meta/i.test(result.error.message || "")
+            ? supabase.from("agent_messages").select("id, agent, role, content, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(200)
+            : result),
         supabase.from("agent_tasks").select("*").eq("user_id", user.id).neq("status", "dismissed").order("created_at", { ascending: false }).limit(100),
       ])
       if (cancelled) return
@@ -159,7 +215,13 @@ export default function AgentsPage() {
 
   React.useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
-  }, [thread.length, sending, active, view])
+  }, [thread.length, sending, active, view, liveSteps.length])
+
+  React.useEffect(() => {
+    if (!sending) return
+    const timer = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(timer)
+  }, [sending])
 
   React.useEffect(() => {
     const el = inputRef.current
@@ -197,6 +259,7 @@ export default function AgentsPage() {
     const pending: ThreadMessage = { id: `pending-${Date.now()}`, agent: agentId, role: "user", content: message, created_at: new Date().toISOString() }
     setSending(true); setError(null); setDraft(""); setShowStarters(false); voice.clearError()
     setThreads(prev => ({ ...prev, [agentId]: [...prev[agentId], pending] }))
+    setLiveSteps([]); setRunStarted(Date.now())
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error("Sign in again to use agents.")
@@ -205,16 +268,50 @@ export default function AgentsPage() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ agent: agentId, message, history, now: localNow(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, tzOffsetMinutes: new Date().getTimezoneOffset() }),
       })
-      const body = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(body.error || "The agent couldn't respond. Please try again.")
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body.error || "The agent couldn't respond. Please try again.")
+      }
+      // Steps stream in as newline-delimited JSON; a crisis reply comes back as plain JSON.
+      let body: any = null
+      if ((response.headers.get("content-type") || "").includes("application/json")) {
+        body = await response.json()
+      } else if (response.body) {
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ""
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          let newline: number
+          while ((newline = buffer.indexOf("\n")) >= 0) {
+            const line = buffer.slice(0, newline).trim()
+            buffer = buffer.slice(newline + 1)
+            if (!line) continue
+            let event: any
+            try { event = JSON.parse(line) } catch { continue }
+            if (event.type === "step") {
+              setLiveSteps(prev => (prev.some(step => step.id === event.step.id) ? prev.map(step => (step.id === event.step.id ? event.step : step)) : [...prev, event.step]))
+            } else if (event.type === "done") {
+              body = event
+            } else if (event.type === "error") {
+              throw new Error(event.error || "The agent couldn't finish. Please try again.")
+            }
+          }
+        }
+      }
+      if (!body) throw new Error("The agent stopped before finishing. Please try again.")
       const created: AgentTask[] = Array.isArray(body.tasks) ? body.tasks : []
-      const reply: ThreadMessage = { id: `reply-${Date.now()}`, agent: agentId, role: "assistant", content: body.reply, created_at: new Date().toISOString(), urgent: body.urgent || undefined, taskIds: created.map(task => task.id) }
+      const reply: ThreadMessage = { id: `reply-${Date.now()}`, agent: agentId, role: "assistant", content: body.reply, created_at: new Date().toISOString(), urgent: body.urgent || undefined, taskIds: created.map(task => task.id), meta: body.meta as MessageMeta | undefined }
       setThreads(prev => ({ ...prev, [agentId]: [...prev[agentId], reply] }))
       if (created.length) {
         setTasks(prev => [...created, ...prev])
         setFilter("todo")
         setFocusTaskId(created[0].id)
       }
+      const updates: { id: string; status: TaskStatus }[] = Array.isArray(body.updates) ? body.updates : []
+      if (updates.length) setTasks(prev => prev.map(task => { const update = updates.find(u => u.id === task.id); return update ? { ...task, status: update.status } : task }))
       if (body.persisted === false && !body.urgent && storage === "ready") setStorage("error")
     } catch (e: unknown) {
       setThreads(prev => ({ ...prev, [agentId]: prev[agentId].filter(m => m.id !== pending.id) }))
@@ -222,6 +319,7 @@ export default function AgentsPage() {
       setError(e instanceof Error ? e.message : "The agent couldn't respond. Please try again.")
     } finally {
       setSending(false)
+      setLiveSteps([])
     }
   }
 
@@ -284,7 +382,7 @@ export default function AgentsPage() {
                   <span className="shrink-0 text-[11px] text-muted-foreground">{last ? formatWhen(last.created_at) : ""}</span>
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="text-[13px] text-muted-foreground truncate flex-1">{last ? last.content.replace(/\s+/g, " ") : a.tagline}</span>
+                  <span className="text-[13px] text-muted-foreground truncate flex-1">{last ? last.content.replace(/\s+/g, " ") : a.intro}</span>
                   {open > 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label={`${open} need you`} />}
                 </span>
               </span>
@@ -384,60 +482,61 @@ export default function AgentsPage() {
             {storage === "missing" ? "Saving isn't set up yet, so this conversation and its tasks only last until you leave." : "Some history couldn't be loaded or saved. Tasks marked \"Not saved\" disappear when you leave."}
           </p>
         )}
-        {thread.length === 0 && !sending ? (
-          <div className="mx-auto max-w-md pt-6 sm:pt-12 text-center">
-            <AgentAvatar agent={active} size={76} className="mx-auto" />
-            <p className="mt-4 text-xl font-semibold tracking-tight">What should {agent.name} handle?</p>
-            <p className="mt-1.5 text-sm text-muted-foreground">{agent.tagline}. You review everything before it goes anywhere.</p>
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {agent.starters.map(starter => (
-                <button key={starter} type="button" onClick={() => send(starter)} className="rounded-full border border-border bg-card px-4 py-2 text-[13px] text-foreground hover:border-primary/40 hover:bg-secondary/50 transition-colors">{starter}</button>
-              ))}
+        <div className="mx-auto max-w-2xl space-y-2.5">
+          {/* Each agent opens by introducing itself and how to use it. */}
+          <div className="space-y-2.5 pb-1">
+            <div className="flex items-end gap-2">
+              <AgentAvatar agent={active} size={28} className="mb-0.5" />
+              <p className="max-w-[80%] rounded-[1.35rem] rounded-bl-md bg-secondary px-4 py-2.5 text-[15px] leading-snug text-foreground">
+                {agent.intro}
+                <span className="mt-1.5 block font-semibold">{agent.howTo}</span>
+              </p>
             </div>
-          </div>
-        ) : (
-          <div className="mx-auto max-w-2xl space-y-2.5">
-            {thread.map(message => {
-              const time = Date.parse(message.created_at)
-              const showStamp = !lastStamp || time - lastStamp > 30 * 60_000
-              lastStamp = time
-              const attached = message.role === "assistant" ? tasksByMessage.get(message.id) || [] : []
-              return (
-                <React.Fragment key={message.id}>
-                  {showStamp && <p className="pt-2 pb-1 text-center text-xs text-muted-foreground">{formatStamp(message.created_at)}</p>}
-                  {message.role === "user" ? (
-                    <div className="flex justify-end">
-                      <p className="max-w-[80%] rounded-[1.35rem] bg-foreground px-4 py-2.5 text-[15px] leading-snug text-background whitespace-pre-wrap">{message.content}</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className={cn("max-w-[85%] w-fit rounded-[1.35rem] px-4 py-2.5 text-[15px] leading-snug whitespace-pre-wrap", message.urgent ? "border border-health-danger/50 bg-health-danger/10 font-medium" : "bg-secondary text-foreground")}>{message.content}</p>
-                      {attached.map(task => {
-                        const Icon = KIND[task.kind].icon
-                        return (
-                          <button key={task.id} type="button" onClick={() => openTask(task)} className="flex w-full max-w-[360px] items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-sm hover:border-primary/40 transition-colors">
-                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `color-mix(in oklch, ${AGENT_ACCENTS[task.agent]} 14%, transparent)`, color: AGENT_ACCENTS[task.agent] }}><Icon className="h-5 w-5" /></span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-semibold truncate">{task.title}</span>
-                              <span className="block text-xs text-muted-foreground truncate">{KIND[task.kind].label}{summaryLine(task) ? ` · ${summaryLine(task)}` : ""}</span>
-                            </span>
-                            {task.status === "done" ? <Check className="h-4 w-4 text-health-normal" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </React.Fragment>
-              )
-            })}
-            {sending && (
-              <div className="flex items-center gap-2 rounded-[1.35rem] bg-secondary px-4 py-2.5 w-fit text-sm text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                {active === "research" ? "Searching PubMed, ClinicalTrials.gov and FDA labels…" : "Working on it…"}
+            {thread.length === 0 && !sending && (
+              <div className="flex flex-wrap gap-2 pl-9">
+                {agent.starters.map(starter => (
+                  <button key={starter} type="button" onClick={() => send(starter)} className="rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] text-foreground hover:border-primary/40 hover:bg-secondary/50 transition-colors">{starter}</button>
+                ))}
               </div>
             )}
           </div>
-        )}
+          {thread.map(message => {
+            const time = Date.parse(message.created_at)
+            const showStamp = !lastStamp || time - lastStamp > 30 * 60_000
+            lastStamp = time
+            const attached = message.role === "assistant" ? tasksByMessage.get(message.id) || [] : []
+            return (
+              <React.Fragment key={message.id}>
+                {showStamp && <p className="pt-2 pb-1 text-center text-xs text-muted-foreground">{formatStamp(message.created_at)}</p>}
+                {message.role === "user" ? (
+                  <div className="flex justify-end">
+                    <p className="max-w-[80%] rounded-[1.35rem] bg-foreground px-4 py-2.5 text-[15px] leading-snug text-background whitespace-pre-wrap">{message.content}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {message.meta?.steps && <WorkLog steps={message.meta.steps} durationMs={message.meta.duration_ms} />}
+                    <p className={cn("max-w-[85%] w-fit rounded-[1.35rem] px-4 py-2.5 text-[15px] leading-snug whitespace-pre-wrap", message.urgent ? "border border-health-danger/50 bg-health-danger/10 font-medium" : "bg-secondary text-foreground")}>{message.content}</p>
+                    <SourceChips sources={message.meta?.sources} />
+                    {attached.map(task => {
+                      const Icon = KIND[task.kind].icon
+                      return (
+                        <button key={task.id} type="button" onClick={() => openTask(task)} className="flex w-full max-w-[360px] items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-sm hover:border-primary/40 transition-colors">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `color-mix(in oklch, ${AGENT_ACCENTS[task.agent]} 14%, transparent)`, color: AGENT_ACCENTS[task.agent] }}><Icon className="h-5 w-5" /></span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-semibold truncate">{task.title}</span>
+                            <span className="block text-xs text-muted-foreground truncate">{KIND[task.kind].label}{summaryLine(task) ? ` · ${summaryLine(task)}` : ""}</span>
+                          </span>
+                          {task.status === "done" ? <Check className="h-4 w-4 text-health-normal" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </React.Fragment>
+            )
+          })}
+          {sending && <WorkLog live steps={liveSteps} durationMs={runStarted ? Date.now() - runStarted : undefined} />}
+        </div>
       </div>
 
       <div className="shrink-0 px-3 sm:px-6 pb-3 pt-1 safe-bottom">
@@ -537,7 +636,7 @@ export default function AgentsPage() {
             {agent.capabilities.map(c => (
               <li key={c.label} className="flex items-start gap-2.5 text-[13px]">
                 {c.status === "works" ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-health-normal" /> : <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-                <span className={c.status === "works" ? "text-foreground" : "text-muted-foreground"}>{c.label}{c.status === "needs_connection" && <span className="block text-[11px]">Needs a connection</span>}</span>
+                <span className={c.status === "works" ? "text-foreground" : "text-muted-foreground"}>{c.label}{c.status !== "works" && <span className="block text-[11px]">{c.status === "coming" ? "Coming next" : "Needs a connection"}</span>}</span>
               </li>
             ))}
           </ul>

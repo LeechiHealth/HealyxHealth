@@ -18,12 +18,20 @@ export interface AgentTask {
   local?: boolean
 }
 
+export interface MessageMeta {
+  duration_ms?: number
+  steps?: { label: string; status: string }[]
+  sources?: { title: string; url: string }[]
+  provider?: string
+}
+
 export interface AgentMessage {
   id: string
   agent: AgentId
   role: "user" | "assistant"
   content: string
   created_at: string
+  meta?: MessageMeta | null
 }
 
 export type NewTask = Omit<AgentTask, "id" | "created_at" | "local">

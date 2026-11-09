@@ -9,20 +9,27 @@ const MEDS = [
 ]
 const CONDITIONS = [{ name: 'Hypothyroidism', status: 'active' }]
 
-function fakeDb({ missingTables = false } = {}) {
+function fakeDb({ missingTables = false, missingMeta = false } = {}) {
   const inserted = { agent_messages: [], agent_tasks: [] }
-  return {
-    inserted,
+  const updated = []
+  const db = {
+    inserted, updated,
     from(table) {
-      const rows = table === 'medications' ? MEDS : table === 'conditions' ? CONDITIONS : []
+      const rows = table === 'medications' ? MEDS : table === 'conditions' ? CONDITIONS : table === 'agent_tasks' ? [{ id: 'task-1', agent: 'medications', kind: 'refill_request', title: 'Refill Levothyroxine', status: 'todo' }] : []
+      const filters = []
       const chain = {
         select: () => chain,
-        eq: () => chain,
+        eq: (column, value) => { filters.push([column, value]); return chain },
+        neq: () => chain,
+        order: () => chain,
         limit: async () => ({ data: rows, error: null }),
+        single: async () => ({ data: { id: 'task-1', title: 'Refill Levothyroxine' }, error: null }),
+        update: patch => { updated.push({ table, patch, filters }); return chain },
         insert: list => {
-          const result = missingTables
-            ? { data: null, error: { code: 'PGRST205', message: "Could not find the table 'public.agent_tasks' in the schema cache" } }
-            : (inserted[table].push(...list), { data: list.map((row, i) => ({ id: `${table}-${i}`, created_at: '2026-11-09T12:00:00Z', ...row })), error: null })
+          let result
+          if (missingTables) result = { data: null, error: { code: 'PGRST205', message: "Could not find the table 'public.agent_tasks' in the schema cache" } }
+          else if (missingMeta && table === 'agent_messages' && list.some(row => 'meta' in row)) result = { data: null, error: { code: 'PGRST204', message: "Could not find the 'meta' column of 'agent_messages'" } }
+          else { inserted[table].push(...list); result = { data: list.map((row, i) => ({ id: `${table}-${i}`, created_at: '2026-11-09T12:00:00Z', ...row })), error: null } }
           const promise = Promise.resolve(result)
           promise.select = async () => result
           return promise
@@ -31,153 +38,186 @@ function fakeDb({ missingTables = false } = {}) {
       return chain
     },
   }
+  return db
 }
 
-function loadRoute({ authenticated = true, outputs = [], fetchImpl, db = fakeDb() } = {}) {
-  const prompts = []
-  const fetched = []
+const call = (name, args, id = `${name}-${Math.random().toString(36).slice(2, 7)}`) => ({ id, type: 'function', function: { name, arguments: typeof args === 'string' ? args : JSON.stringify(args) } })
+const toolTurn = (...calls) => ({ role: 'assistant', content: null, tool_calls: calls })
+const finalTurn = content => ({ role: 'assistant', content })
+
+function loadRoute({ authenticated = true, turns = [], providers = ['groq'], fetchImpl, web, db = fakeDb() } = {}) {
+  const requests = []
   const route = loadTs('app/api/agents/run/route.ts', {
     stubs: {
       'next/server': { NextResponse: { json: (body, options) => ({ body, status: options?.status || 200 }) } },
       '@/lib/serverAuth': { authenticateRequest: async () => (authenticated ? { user: { id: 'synthetic-user' }, supabase: db } : { response: { status: 401 } }) },
-      '@/lib/groq/client': { GROQ_MODEL: 'test', groq: { chat: { completions: { create: async request => {
-        prompts.push(request)
-        const next = outputs.shift()
-        if (next instanceof Error || (next && next.status)) throw next
-        return { choices: [{ message: { content: typeof next === 'string' ? next : JSON.stringify(next) } }] }
-      } } } } },
+      '@/lib/agents/llm': {
+        agentProviders: () => providers,
+        chat: async request => {
+          requests.push(JSON.parse(JSON.stringify(request)))
+          const next = turns.shift()
+          if (!next) throw Object.assign(new Error('no scripted turn'), { status: 500 })
+          if (next instanceof Error) throw next
+          return { message: typeof next === 'function' ? next(request) : next, provider: 'scripted' }
+        },
+      },
+      '@/lib/agents/web': { browseWeb: web || (async () => { throw new Error('WEB_UNAVAILABLE') }) },
     },
     globals: {
-      process: { env: { GROQ_API_KEY: 'synthetic-test-key' } },
-      fetch: async (url, options) => { fetched.push(String(url)); if (!fetchImpl) throw new Error('offline'); return fetchImpl(String(url), options) },
+      process: { env: {} }, Response, ReadableStream, TextEncoder, TextDecoder,
+      fetch: async url => { if (!fetchImpl) throw new Error('offline'); return fetchImpl(String(url)) },
     },
   })
-  return { post: route.POST, prompts, fetched, db }
+  return { post: route.POST, requests, db }
 }
 
-const body = extra => ({ json: async () => ({ agent: 'medications', message: 'Remind me to take my thyroid pill', now: '2026-11-09T21:30', tz: 'America/New_York', tzOffsetMinutes: 300, ...extra }) })
+const body = extra => ({ json: async () => ({ agent: 'medications', message: 'Remind me to take my thyroid pill at 7', now: '2026-11-09T21:30', tz: 'America/New_York', tzOffsetMinutes: 300, ...extra }) })
+
+async function events(result) {
+  const text = await result.text()
+  return text.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
+}
 
 test('unauthenticated requests never reach the provider', async () => {
   const route = loadRoute({ authenticated: false })
   assert.equal((await route.post(body())).status, 401)
-  assert.equal(route.prompts.length, 0)
+  assert.equal(route.requests.length, 0)
 })
 
-test('invalid agent or message is rejected before the provider', async () => {
+test('invalid input is rejected before the provider', async () => {
   const route = loadRoute()
-  assert.equal((await route.post(body({ agent: 'billing' }))).status, 400)
-  assert.equal((await route.post(body({ message: '' }))).status, 400)
-  assert.equal((await route.post(body({ now: 'tomorrow' }))).status, 400)
-  assert.equal(route.prompts.length, 0)
+  for (const extra of [{ agent: 'billing' }, { message: '' }, { now: 'tomorrow' }]) assert.equal((await route.post(body(extra))).status, 400)
+  assert.equal(route.requests.length, 0)
 })
 
-test('a crisis gets 988 guidance and nothing is stored or sent to the provider', async () => {
+test('a crisis gets 988 guidance; nothing is stored or sent to the provider', async () => {
   const route = loadRoute()
   const result = await route.post(body({ message: 'I want to end my life' }))
-  assert.equal(result.status, 200)
   assert.equal(result.body.urgent, 'crisis')
   assert.match(result.body.reply, /988/)
-  assert.equal(route.prompts.length, 0)
+  assert.equal(route.requests.length, 0)
   assert.equal(route.db.inserted.agent_messages.length, 0)
 })
 
-test('a present emergency leads with 911 and the agent still helps', async () => {
-  const route = loadRoute({ outputs: [{ reply: 'I drafted a request for a same-day visit.', actions: [] }] })
-  const result = await route.post(body({ agent: 'appointments', message: "I'm having chest pain right now. Get me in with my doctor." }))
-  assert.equal(result.body.urgent, 'emergency')
-  assert.match(result.body.reply, /^If this is happening now.*911/)
-  assert.match(result.body.reply, /I drafted a request/)
+test('no configured provider returns a controlled error', async () => {
+  const result = await loadRoute({ providers: [] }).post(body())
+  assert.equal(result.status, 503)
 })
 
-test('medication agent receives dose records; refill dates are computed server-side', async () => {
-  const route = loadRoute({ outputs: [{
-    reply: 'I prepared a reminder and a refill request.',
-    actions: [
-      { kind: 'med_reminder', medication: 'Levothyroxine', dose: '50 mcg', times: ['07:00'], days: [], times_confirmed: true },
-      { kind: 'refill_request', medication: 'Levothyroxine', dose: '50 mcg', pharmacy: 'Synthetic Pharmacy', message: 'Hello, this is [Your name].', supply_remaining: 10, doses_per_day: 1 },
-      { kind: 'shopping_list', title: 'Not allowed here', items: [] },
-    ],
-  }] })
+test('the agent chains tools, fixes its own mistakes, and streams each step', async () => {
+  const route = loadRoute({ turns: [
+    toolTurn(call('set_medication_reminder', { medication: 'Levothyroxine', dose: '50 mcg', times: ['7am'] }, 'c1')),
+    request => {
+      const toolReply = request.messages.find(m => m.role === 'tool' && m.tool_call_id === 'c1')
+      assert.match(toolReply.content, /Not saved/)
+      return toolTurn(
+        call('set_medication_reminder', { medication: 'Levothyroxine', dose: '50 mcg', times: ['07:00'], times_confirmed: true }, 'c2'),
+        call('prepare_refill_request', { medication: 'Levothyroxine', dose: '50 mcg', message: 'Hello, this is [Your name].', supply_remaining: 10, doses_per_day: 1 }, 'c3'),
+      )
+    },
+    finalTurn('Your 7:00 AM reminder and a refill request are in your queue.'),
+  ] })
   const result = await route.post(body())
-  assert.equal(result.status, 200)
-  assert.equal(result.body.persisted, true)
-  assert.equal(result.body.tasks.length, 2)
-  const refill = result.body.tasks.find(task => task.kind === 'refill_request')
+  assert.equal(result.headers.get('content-type'), 'application/x-ndjson; charset=utf-8')
+  const all = await events(result)
+  const steps = all.filter(e => e.type === 'step').map(e => `${e.step.label}:${e.step.status}`)
+  assert.deepEqual(steps, [
+    'Setting a reminder for Levothyroxine:running', 'Setting a reminder for Levothyroxine:error',
+    'Setting a reminder for Levothyroxine:running', 'Setting a reminder for Levothyroxine:done',
+    'Drafting a refill request for Levothyroxine:running', 'Drafting a refill request for Levothyroxine:done',
+  ])
+  const done = all.find(e => e.type === 'done')
+  assert.equal(done.tasks.length, 2)
+  const refill = done.tasks.find(t => t.kind === 'refill_request')
   assert.equal(refill.payload.runs_out_on, '2026-11-19')
   assert.equal(refill.payload.remind_on, '2026-11-14')
-  assert.equal(refill.due_at, '2026-11-14T14:00:00.000Z')
-  assert.equal(refill.user_id, 'synthetic-user')
-  const recordPrompt = route.prompts[0].messages[1].content
-  assert.match(recordPrompt, /Levothyroxine/)
-  assert.match(route.prompts[0].messages[0].content, /2026-11-09T21:30 local time, Monday/)
-  assert.equal(route.db.inserted.agent_messages.length, 2)
+  assert.equal(done.meta.steps.length, 3)
+  assert.equal(route.requests.length, 3)
+  assert.match(route.requests[0].messages[0].content, /You are Medications/)
+  assert.match(route.requests[0].messages[0].content, /Monday 2026-11-09 \(today\)/)
+  assert.match(route.requests[0].messages[1].content, /Levothyroxine/)
+  assert.ok(route.requests[0].tools.some(t => t.function.name === 'set_medication_reminder'))
+  assert.equal(route.db.inserted.agent_messages[1].meta.steps.length, 3)
 })
 
-test('a reply claiming something was booked or sent is replaced with an honest one', async () => {
-  const route = loadRoute({ outputs: [{ reply: "Done! I've booked your physical with Dr. Test for Friday.", actions: [{ kind: 'appointment', title: 'Physical', reason: 'Annual checkup', starts_at: '2026-11-13T09:00', request_message: 'Hi, I would like to book a physical.' }] }] })
-  const result = await route.post(body({ agent: 'appointments', message: 'Book my physical for Friday 9am' }))
-  assert.match(result.body.reply, /Nothing has been sent, booked or bought/)
-  assert.equal(result.body.tasks[0].due_at, '2026-11-13T14:00:00.000Z')
-})
-
-test('when agent tables are missing, tasks come back unsaved instead of failing', async () => {
-  const route = loadRoute({ db: fakeDb({ missingTables: true }), outputs: [{ reply: 'I prepared a reminder.', actions: [{ kind: 'med_reminder', medication: 'Levothyroxine', times: ['07:00'] }] }] })
-  const result = await route.post(body())
-  assert.equal(result.status, 200)
-  assert.equal(result.body.persisted, false)
-  assert.equal(result.body.tasks[0].local, true)
-  assert.match(result.body.tasks[0].id, /^local-/)
-})
-
-test('research cites only retrieved sources and flags label mentions of saved records', async () => {
-  const fetchImpl = async url => {
-    const json = data => ({ ok: true, status: 200, json: async () => data, text: async () => JSON.stringify(data) })
-    if (url.includes('esearch.fcgi')) return json({ esearchresult: { idlist: ['111', '222'] } })
-    if (url.includes('esummary.fcgi')) return json({ result: { 111: { title: 'Magnesium for sleep: a systematic review.', pubdate: '2021 Mar', source: 'Synthetic J', pubtype: ['Systematic Review'] }, 222: { title: 'A trial of magnesium.', pubdate: '2019', source: 'Synthetic J', pubtype: ['Randomized Controlled Trial'] } } })
-    if (url.includes('efetch.fcgi')) return { ok: true, status: 200, text: async () => '<PubmedArticle><PMID>111</PMID><AbstractText>Synthetic abstract one.</AbstractText></PubmedArticle><PubmedArticle><PMID>222</PMID><AbstractText>Synthetic abstract two.</AbstractText></PubmedArticle>' }
-    if (url.includes('api.fda.gov')) return json({ results: [{ set_id: 'set-1', openfda: { brand_name: ['Synthetic Mag'], generic_name: ['magnesium oxide'], product_type: ['HUMAN OTC DRUG'] }, ask_doctor_or_pharmacist: ['Ask a doctor or pharmacist before use if you are taking levothyroxine. Separate doses by 4 hours.'] }] })
-    throw new Error(`Unexpected URL ${url}`)
-  }
-  const route = loadRoute({ fetchImpl, outputs: [
-    { topic: 'Magnesium for sleep', pubmed_query: 'magnesium sleep', drug_names: ['magnesium oxide'], trial_query: null },
-    { reply: 'Evidence is limited.', points: [{ text: 'Supported point', cites: [2] }, { text: 'Invented citation', cites: [9] }, { text: 'Uncited', cites: [] }], ask_clinician: ['Is it safe with my thyroid medicine?'], limits: 'Small studies.' },
+test('research briefs keep only points that cite sources the agent actually retrieved', async () => {
+  const fetchImpl = async () => ({ ok: true, status: 200, json: async () => ({ results: [{ set_id: 'set-1', openfda: { generic_name: ['magnesium oxide'], brand_name: ['Synthetic Mag'], product_type: ['HUMAN OTC DRUG'] }, ask_doctor_or_pharmacist: ['Ask a doctor or pharmacist before use if you are taking levothyroxine.'] }] }) })
+  const web = async () => ({ answer: 'A sleep society page says evidence is limited.', sources: [{ title: 'sleep.example', url: 'https://sleep.example/magnesium' }], engine: 'test' })
+  const route = loadRoute({ fetchImpl, web, turns: [
+    toolTurn(call('get_fda_label', { drug: 'magnesium oxide' }), call('web_browse', { question: 'magnesium for sleep guidelines' })),
+    toolTurn(call('save_research_brief', { topic: 'Magnesium for sleep', points: [{ text: 'Label says ask first if on levothyroxine', cites: [1] }, { text: 'Invented claim', cites: [9] }, { text: 'Uncited claim', cites: [] }] })),
+    finalTurn('Evidence is limited. Details are in your queue.'),
   ] })
-  const result = await route.post(body({ agent: 'research', message: 'Does magnesium help sleep?' }))
-  assert.equal(result.status, 200)
-  const brief = result.body.tasks[0]
+  const done = (await events(await route.post(body({ agent: 'research', message: 'Does magnesium help sleep?' })))).find(e => e.type === 'done')
+  const brief = done.tasks[0]
   assert.equal(brief.kind, 'research_brief')
-  assert.equal(brief.payload.sources.length, 3)
-  assert.deepEqual(brief.payload.points.map(p => p.text), ['Supported point'])
-  assert.equal(brief.payload.label_mentions.length, 1)
+  assert.deepEqual(brief.payload.points.map(p => p.text), ['Label says ask first if on levothyroxine'])
+  assert.equal(brief.payload.sources.length, 2)
   assert.equal(brief.payload.label_mentions[0].term, 'levothyroxine')
-  assert.match(result.body.reply, /FDA label names one of your saved medications/)
-  for (const url of route.fetched) assert.equal(/synthetic-user|Hypothyroidism|Dr\.?%20Test/i.test(url), false, url)
+  assert.deepEqual(done.meta.sources, [{ title: 'sleep.example', url: 'https://sleep.example/magnesium' }])
 })
 
-test('research reports an outage instead of claiming there is no evidence', async () => {
-  const route = loadRoute({ outputs: [{ topic: 'Sleep', pubmed_query: 'sleep', drug_names: [], trial_query: null }] })
-  const result = await route.post(body({ agent: 'research', message: 'Sleep research' }))
-  assert.match(result.body.reply, /PubMed didn't respond/)
-  assert.equal(result.body.tasks.length, 0)
+test('unknown tools, bad JSON and failing tools are reported back to the model', async () => {
+  const route = loadRoute({ turns: [
+    toolTurn(call('book_appointment', {}, 'u1'), call('web_browse', '{not json', 'u2'), call('web_browse', { question: 'clinic hours' }, 'u3')),
+    request => {
+      const results = Object.fromEntries(request.messages.filter(m => m.role === 'tool').map(m => [m.tool_call_id, m.content]))
+      assert.match(results.u1, /Unknown tool/)
+      assert.match(results.u2, /not valid JSON/)
+      assert.match(results.u3, /unavailable/)
+      return finalTurn('I could not reach the web just now.')
+    },
+  ] })
+  const done = (await events(await route.post(body({ agent: 'appointments', message: 'Find a clinic' })))).find(e => e.type === 'done')
+  assert.match(done.reply, /could not reach/)
 })
 
-test('provider failures return controlled errors without leaking details', async () => {
-  const route = loadRoute({ outputs: [Object.assign(new Error('Synthetic secret context'), { status: 500 })] })
-  const result = await route.post(body())
-  assert.equal(result.status, 503)
-  assert.equal(JSON.stringify(result.body).includes('Synthetic secret'), false)
-  const limited = loadRoute({ outputs: [Object.assign(new Error('rate'), { status: 429 })] })
-  assert.equal((await limited.post(body())).status, 429)
-  const garbled = loadRoute({ outputs: ['not json'] })
-  assert.equal((await garbled.post(body())).status, 502)
+test('the loop stops after the round limit and asks for a final answer without tools', async () => {
+  const turns = Array.from({ length: 8 }, () => toolTurn(call('list_my_tasks', {})))
+  turns.push(request => { assert.equal(request.tool_choice, 'none'); return finalTurn('Here is where things stand.') })
+  const route = loadRoute({ turns })
+  const done = (await events(await route.post(body()))).find(e => e.type === 'done')
+  assert.equal(done.reply, 'Here is where things stand.')
+  assert.equal(route.requests.length, 9)
 })
 
-test('shopping label results are described by code, never by the model', async () => {
-  const fetchImpl = async () => ({ ok: true, status: 200, json: async () => ({ results: [{ set_id: 's', openfda: { generic_name: ['ibuprofen'], brand_name: ['Ibuprofen'], product_type: ['HUMAN OTC DRUG'] }, ask_doctor: ['Ask a doctor before use if you take levothyroxine.'] }] }) })
-  const route = loadRoute({ fetchImpl, outputs: [{ reply: 'Here is a list.', actions: [{ kind: 'shopping_list', title: 'Pain relief', items: [{ name: 'Ibuprofen', why: 'Aches', look_for: 'Single ingredient', active_ingredient: 'ibuprofen', search_terms: 'ibuprofen' }, { name: 'Heating pad', why: 'Aches', look_for: 'Auto shut-off', search_terms: 'heating pad' }] }] }] })
-  const result = await route.post(body({ agent: 'shopping', message: 'Can I take ibuprofen?' }))
-  assert.match(result.body.reply, /I checked the FDA label for ibuprofen.*mentions something in your records/)
-  assert.match(result.body.reply, /Ask a pharmacist/)
-  const items = result.body.tasks[0].payload.items
-  assert.equal(items[1].label_check, undefined)
+test('agents can move tasks in the person\'s own queue', async () => {
+  const route = loadRoute({ turns: [toolTurn(call('update_task_status', { task_id: 'task-1', status: 'done' })), finalTurn('Marked your refill as picked up.')] })
+  const done = (await events(await route.post(body({ message: 'I picked up my refill' })))).find(e => e.type === 'done')
+  assert.deepEqual(done.updates, [{ id: 'task-1', status: 'done' }])
+  assert.deepEqual(route.db.updated[0].filters, [['id', 'task-1'], ['user_id', 'synthetic-user']])
+})
+
+test('a reply claiming something was booked or sent is replaced', async () => {
+  const route = loadRoute({ turns: [finalTurn("Done! I've booked your physical for Friday.")] })
+  const done = (await events(await route.post(body({ agent: 'appointments', message: 'Book my physical' })))).find(e => e.type === 'done')
+  assert.match(done.reply, /Nothing has been sent, booked or bought/)
+})
+
+test('a present emergency leads with 911 and the agent still helps', async () => {
+  const route = loadRoute({ turns: [finalTurn('I can find the nearest ER.')] })
+  const done = (await events(await route.post(body({ agent: 'appointments', message: "I'm having chest pain right now" })))).find(e => e.type === 'done')
+  assert.equal(done.urgent, 'emergency')
+  assert.match(done.reply, /^If this is happening now.*911/)
+})
+
+test('missing tables return unsaved tasks; a missing meta column still saves the conversation', async () => {
+  const reminder = () => toolTurn(call('set_medication_reminder', { medication: 'Levothyroxine', times: ['07:00'] }))
+  const noTables = (await events(await loadRoute({ db: fakeDb({ missingTables: true }), turns: [reminder(), finalTurn('Added.')] }).post(body()))).find(e => e.type === 'done')
+  assert.equal(noTables.persisted, false)
+  assert.match(noTables.tasks[0].id, /^local-/)
+  const db = fakeDb({ missingMeta: true })
+  const noMeta = (await events(await loadRoute({ db, turns: [reminder(), finalTurn('Added.')] }).post(body()))).find(e => e.type === 'done')
+  assert.equal(noMeta.persisted, true)
+  assert.equal(db.inserted.agent_messages.length, 2)
+  assert.equal('meta' in db.inserted.agent_messages[1], false)
+})
+
+test('provider failures end the stream with a controlled error and no leaked details', async () => {
+  const route = loadRoute({ turns: [Object.assign(new Error('Synthetic secret context'), { status: 500 })] })
+  const all = await events(await route.post(body()))
+  assert.equal(all.at(-1).type, 'error')
+  assert.equal(JSON.stringify(all).includes('Synthetic secret'), false)
+  const limited = await events(await loadRoute({ turns: [Object.assign(new Error('rate'), { status: 429 })] }).post(body()))
+  assert.match(limited.at(-1).error, /limit/)
 })

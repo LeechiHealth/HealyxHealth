@@ -117,3 +117,38 @@ test('printed lab dates are converted in code, keeping the printed year', () => 
   assert.equal(parsePrintedDate(null, now), null)
   assert.equal(parsePrintedDate('no date here', now), null)
 })
+
+test('the agent brain falls through to the next provider on a rate limit', async () => {
+  const calls = []
+  const llm = loadTs('lib/agents/llm.ts', { globals: { fetch: async (url, init) => {
+    calls.push({ url, body: JSON.parse(init.body) })
+    if (url.includes('groq')) return { ok: false, status: 429, json: async () => ({}) }
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { role: 'assistant', content: 'from gemini' } }] }) }
+  } } })
+  const env = { GROQ_API_KEY: 'synthetic-groq', GEMINI_API_KEY: 'synthetic-gemini' }
+  assert.deepEqual([...llm.agentProviders(env).map(p => p.name)], ['groq', 'gemini'])
+  const result = await llm.chat({ messages: [{ role: 'assistant', content: null, reasoning: 'hidden', tool_calls: [{ id: 't', type: 'function', function: { name: 'x', arguments: '{}' } }] }] }, env)
+  assert.equal(result.provider, 'gemini')
+  assert.equal(result.message.content, 'from gemini')
+  assert.equal(calls.length, 2)
+  assert.equal('reasoning' in calls[1].body.messages[0], false)
+  assert.equal(calls[1].body.model, 'gemini-2.5-flash')
+  const custom = llm.agentProviders({ ...env, AGENT_LLM_URL: 'http://localhost:11434/v1/chat/completions', AGENT_LLM_KEY: 'k', AGENT_LLM_MODEL: 'open-model' })
+  assert.equal(custom[0].name, 'custom')
+  await assert.rejects(() => llm.chat({ messages: [] }, {}), /AI_NOT_CONFIGURED/)
+})
+
+test('web findings keep their source links and drop citation markers', () => {
+  const web = loadTs('lib/agents/web.ts')
+  const sources = web.extractSources('Open 9-6【1†L16-L19】 per https://www.baycare.org/locations/x. Also https://baycare.org/locations/x and https://solv.example/clinic).')
+  assert.deepEqual([...sources.map(s => s.title)], ['baycare.org', 'solv.example'])
+  assert.equal(sources[0].url, 'https://www.baycare.org/locations/x')
+})
+
+test('agent replies are kept plain text', () => {
+  assert.equal(safety.honestReply('Here are options:\n\n*   **MedExpress** open 8-8\n- BayCare 9-6\n\n\n## Next'), 'Here are options:\n\n• MedExpress open 8-8\n• BayCare 9-6\n\nNext')
+})
+
+test('condition names keep their numbers when matched against labels', () => {
+  assert.deepEqual([...research.searchTerms(['Type 2 diabetes', 'Metformin 500 mg'])], ['type 2 diabetes', 'metformin'])
+})
