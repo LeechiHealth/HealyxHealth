@@ -1,6 +1,6 @@
 # Healyx Health
 
-A personal health workspace built with Next.js, Supabase, and Groq. Main navigation: Overview, Health Records, Research, and Protocol. The experimental Brain route is retained for existing links but removed from navigation.
+A personal health workspace built with Next.js, Supabase, and Groq. Main navigation: Overview, Health Records, Research, and Agents. The Protocol route (`/protocol`) and the experimental Brain route are retained for existing links but removed from navigation.
 
 ## Local setup
 
@@ -10,7 +10,7 @@ Use Node.js 20.9 or later. Install with `npm ci --legacy-peer-deps`, then `npm r
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: public Supabase anonymous key. Existing database tables and row-level security policies are required.
 - `GROQ_API_KEY`: server-only Groq API credential for chat, transcription, and generation. Configure it in the deployed environment as well.
 
-Run `node --test tests/*.test.cjs`, `npx tsc --noEmit`, and `npm run build` before deployment. Sign in with an existing test account to verify records, chat, research, and protocol. No production credentials or patient records are bundled.
+Run `node --test tests/*.test.cjs`, `npx tsc --noEmit`, and `npm run build` before deployment. Sign in with an existing test account to verify records, chat, research, and agents. No production credentials or patient records are bundled.
 
 ## What the number means
 
@@ -25,6 +25,14 @@ PhenoAge is withheld because the current records cannot establish verified same-
 Research searches PubMed and ClinicalTrials.gov and links to original records. Indexing is not a guarantee of peer review, study quality, or applicability; trial registration does not prove effectiveness. Abstracts and AI summaries are labeled separately. Source outages produce a retryable error rather than a false claim of no evidence.
 
 Protocol shows the saved plan, actual task completion, next unfinished action, and review date. Generated suggestions require personal/clinical review before acting on them. No fabricated completion or outcome data is shown.
+
+## Health agents
+
+The Agents tab (`/agents`) replaces Protocol in the navigation. Four agents prepare work the person reviews and finishes themselves: Appointments (request drafts, call scripts, visit questions, calendar reminders), Medications (daily reminders, refill drafts, run-out dates), Research (FDA labels, PubMed, recruiting trials, with citations) and Shopping (supply lists, OTC label checks, store search links). Output lands in a task queue: Needs you, Waiting, Done.
+
+What works today versus what needs an integration is shown in the UI and defined in `lib/agents/config.ts`. Agents never send, book, call or buy. Replies that claim otherwise are replaced (`lib/agents/safety.ts`). Reminders are delivered as `.ics` files or Google Calendar links; Healyx does not send notifications yet. Refill dates are computed in code, never by the model. Research points without a valid citation to a retrieved source are dropped. FDA label "mentions" are plain text matches of saved medication and condition names in warning sections, not confirmed interactions; labels often use drug classes, and the UI says so. Crisis language returns 988 guidance and is neither stored nor sent to the AI provider; possible emergencies lead with a 911 notice.
+
+**Setup:** run `supabase/migrations/20261109_health_agents.sql` once in the Supabase SQL editor. It creates `agent_messages` and `agent_tasks` with row-level security. Until it runs, agents still work but tasks only last for the session. The route uses the signed-in user's token, never a service-role key.
 
 ## Chat troubleshooting
 

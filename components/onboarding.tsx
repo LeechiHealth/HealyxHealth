@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Home, Database, BookOpen, ListChecks, Sparkles, ArrowRight, X } from "lucide-react"
+import { Home, Database, BookOpen, Bot, Sparkles, ArrowRight, X } from "lucide-react"
 
 const KEY = "healyx_onboarded_v1"
 
@@ -11,7 +11,7 @@ const STEPS = [
   { icon: Home, title: "Ask anything", body: "On Home, type or speak a health question — or upload a lab photo or PDF. The assistant already knows your record and answers simply." },
   { icon: Database, title: "Add your health info", body: "On the Data tab, add your conditions, medications, vitals, and lab results. The more you add, the smarter your score and plan get." },
   { icon: BookOpen, title: "Look up the research", body: "On Insights, search any condition or treatment and get the real evidence — explained in plain language." },
-  { icon: ListChecks, title: "Get your protocol", body: "On Protocol, answer a 1-minute questionnaire and get a personalized 4-week plan with a board and calendar. It adapts every month." },
+  { icon: Bot, title: "Hand off the follow-through", body: "On Agents, get appointment and refill requests drafted, medication reminders added to your calendar, and research checked with sources. You review everything before it goes anywhere." },
 ]
 
 export function Onboarding() {
