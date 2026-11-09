@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { groq, GROQ_MODEL, GROQ_VISION_MODEL, stripReasoning } from '@/lib/groq/client'
+import { GROQ_VISION_MODEL, stripReasoning } from '@/lib/groq/client'
+import { agentProviders, chat, type ContentPart } from '@/lib/agents/llm'
 import { z } from 'zod'
 import { authenticateRequest } from '@/lib/serverAuth'
 import { inflateSync, inflateRawSync } from 'zlib'
@@ -119,8 +120,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Please attach a PDF, JPEG, PNG, or WebP image.' }, { status: 400 })
     }
 
-    if (!process.env.GROQ_API_KEY?.trim()) {
-      return NextResponse.json({ error: 'Your health guide is not connected yet. The site administrator needs to configure GROQ_API_KEY on the server.', code: 'AI_NOT_CONFIGURED' }, { status: 503 })
+    // Groq first, then Gemini, so one provider's rate limit doesn't break chat.
+    if (!agentProviders().length) {
+      return NextResponse.json({ error: 'Your health guide is not connected yet. The site administrator needs to configure an AI provider key on the server.', code: 'AI_NOT_CONFIGURED' }, { status: 503 })
     }
 
     const [conditions, medications, biomarkers] = await Promise.all([
@@ -151,24 +153,21 @@ export async function POST(request: NextRequest) {
       const dataUrl = `data:${fileData.mimeType};base64,${fileData.base64}`
       const textPrompt = userText || 'Please analyze this health document or image and explain what it shows. Highlight any important values, findings, or things I should discuss with my doctor.'
 
-      const completion = await groq.chat.completions.create({
-        model: GROQ_VISION_MODEL,
+      const imageContent: ContentPart[] = [
+        { type: 'image_url', image_url: { url: dataUrl } },
+        { type: 'text', text: textPrompt },
+      ]
+      const { message: answer } = await chat({
         messages: [
           { role: 'system', content: effectiveSystemPrompt },
           ...historyMessages,
-          {
-            role: 'user',
-            content: [
-              { type: 'image_url', image_url: { url: dataUrl } },
-              { type: 'text', text: textPrompt },
-            ],
-          } as any,
+          { role: 'user', content: imageContent },
         ],
-        max_tokens: 1024,
+        max_tokens: 1500,
         temperature: 0.7,
-      })
+      }, process.env, { groqModel: GROQ_VISION_MODEL })
 
-      const reply = stripReasoning(completion.choices[0]?.message?.content || '')
+      const reply = stripReasoning(typeof answer.content === 'string' ? answer.content : '')
       if (!reply) return NextResponse.json({ error: 'Empty response from model' }, { status: 500 })
       return NextResponse.json({ reply })
     }
@@ -187,18 +186,18 @@ export async function POST(request: NextRequest) {
       userContent = `[File: ${fileData.name || 'file'}]\n\n${userText || 'Please help me understand this document.'}`
     }
 
-    const completion = await groq.chat.completions.create({
-      model: GROQ_MODEL,
+    // Room for the model's hidden reasoning plus a full answer.
+    const { message: answer } = await chat({
       messages: [
         { role: 'system', content: effectiveSystemPrompt },
         ...historyMessages,
         { role: 'user', content: userContent },
       ],
-      max_tokens: 1024,
+      max_tokens: 1500,
       temperature: 0.7,
     })
 
-    const reply = stripReasoning(completion.choices[0]?.message?.content || '')
+    const reply = stripReasoning(typeof answer.content === 'string' ? answer.content : '')
     if (!reply) return NextResponse.json({ error: 'Empty response from model' }, { status: 500 })
     return NextResponse.json({ reply })
 
@@ -207,7 +206,7 @@ export async function POST(request: NextRequest) {
     const status: number = raw?.status ?? raw?.response?.status ?? 500
     // Do not return provider internals or health data to the browser or logs.
     console.error('[chat/route] Request failed', { status, type: raw?.name || 'Error' })
-    if (status === 429) {
+    if (status === 429 || status === 503) {
       return NextResponse.json({ error: 'The health guide is busy. Please wait a moment and try again.' }, { status: 429 })
     }
     if (status === 401 || status === 403 || raw?.message === 'AI_NOT_CONFIGURED') {

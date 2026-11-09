@@ -1,11 +1,12 @@
-// Provider-agnostic chat with tool calling over the OpenAI-compatible API that
+// Provider-agnostic chat (with tool calling and images) over the OpenAI-compatible API that
 // Groq, Gemini, OpenRouter, Together and local open-source servers all speak.
 // Providers are tried in order; a rate limit or outage falls through to the next.
 
 export interface ToolCall { id: string; type: "function"; function: { name: string; arguments: string }; extra_content?: { google?: { thought_signature?: string } } & Record<string, unknown> }
+export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool"
-  content: string | null
+  content: string | null | ContentPart[]
   tool_calls?: ToolCall[]
   tool_call_id?: string
 }
@@ -23,14 +24,19 @@ interface Provider { name: string; url: string; key: string; model: string }
 
 type Env = Record<string, string | undefined>
 
-export function agentProviders(env: Env = process.env): Provider[] {
+export interface ChatOptions {
+  /** Groq model for this call only, for example the vision model for an image. */
+  groqModel?: string
+}
+
+export function agentProviders(env: Env = process.env, options: ChatOptions = {}): Provider[] {
   const list: Provider[] = []
   // An explicit OpenAI-compatible endpoint (for example an open-source model host) goes first.
   if (env.AGENT_LLM_URL?.trim() && env.AGENT_LLM_KEY?.trim() && env.AGENT_LLM_MODEL?.trim()) {
     list.push({ name: "custom", url: env.AGENT_LLM_URL.trim(), key: env.AGENT_LLM_KEY.trim(), model: env.AGENT_LLM_MODEL.trim() })
   }
   if (env.GROQ_API_KEY?.trim()) {
-    list.push({ name: "groq", url: "https://api.groq.com/openai/v1/chat/completions", key: env.GROQ_API_KEY.trim(), model: env.AGENT_MODEL?.trim() || env.GROQ_MODEL?.trim() || "openai/gpt-oss-120b" })
+    list.push({ name: "groq", url: "https://api.groq.com/openai/v1/chat/completions", key: env.GROQ_API_KEY.trim(), model: options.groqModel || env.AGENT_MODEL?.trim() || env.GROQ_MODEL?.trim() || "openai/gpt-oss-120b" })
   }
   if (env.GEMINI_API_KEY?.trim()) {
     // Fast model first, then the stronger one. gemini-2.5-flash is overloaded and 2.5-flash-lite is retired for new keys.
@@ -63,8 +69,8 @@ export function cleanMessage(message: ChatMessage, forGemini = false): ChatMessa
   return clean
 }
 
-export async function chat(request: ChatRequest, env: Env = process.env): Promise<{ message: ChatMessage; provider: string }> {
-  const providers = agentProviders(env)
+export async function chat(request: ChatRequest, env: Env = process.env, options: ChatOptions = {}): Promise<{ message: ChatMessage; provider: string }> {
+  const providers = agentProviders(env, options)
   if (!providers.length) throw new LlmError("AI_NOT_CONFIGURED", 503)
   let lastError: LlmError = new LlmError("AI_UNAVAILABLE", 503)
   for (const provider of providers) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { groq, GROQ_MODEL, GROQ_VISION_MODEL, stripReasoning } from '@/lib/groq/client'
+import { GROQ_VISION_MODEL, stripReasoning } from '@/lib/groq/client'
+import { chat, type ContentPart } from '@/lib/agents/llm'
 import { authenticateRequest } from '@/lib/serverAuth'
 import { parsePrintedDate } from '@/lib/printedDate'
 import { inflateSync, inflateRawSync } from 'zlib'
@@ -160,22 +161,20 @@ export async function POST(req: NextRequest) {
     if (mimeType?.startsWith('image/')) {
       // Camera / photo of a lab report → read it directly with the vision model
       const dataUrl = `data:${mimeType};base64,${base64}`
-      const completion = await groq.chat.completions.create({
-        model: GROQ_VISION_MODEL,
+      // Groq's vision model first, then Gemini, so a rate limit doesn't break lab scans.
+      const imageContent: ContentPart[] = [
+        { type: 'image_url', image_url: { url: dataUrl } },
+        { type: 'text', text: `Extract every biomarker/test result you can read in this lab report photo. Return ONLY a JSON array (no code block, no commentary). ${FIELDS}` },
+      ]
+      const { message: answer } = await chat({
         messages: [
           { role: 'system', content: 'You read photos of medical lab reports and extract the results. Return ONLY a JSON array, no markdown.' },
-          {
-            role: 'user',
-            content: [
-              { type: 'image_url', image_url: { url: dataUrl } },
-              { type: 'text', text: `Extract every biomarker/test result you can read in this lab report photo. Return ONLY a JSON array (no code block, no commentary). ${FIELDS}` },
-            ],
-          } as any,
+          { role: 'user', content: imageContent },
         ],
-        max_tokens: 1500,
+        max_tokens: 2000,
         temperature: 0.1,
-      })
-      rawResponse = stripReasoning(completion.choices[0]?.message?.content || '') || '[]'
+      }, process.env, { groqModel: GROQ_VISION_MODEL })
+      rawResponse = stripReasoning(typeof answer.content === 'string' ? answer.content : '') || '[]'
     } else {
       let rawText = ''
       if (mimeType === 'application/pdf') {
@@ -202,16 +201,15 @@ ${rawText}
 
 JSON:`
 
-      const completion = await groq.chat.completions.create({
-        model: GROQ_MODEL,
+      const { message: answer } = await chat({
         messages: [
           { role: 'system', content: 'Extract lab biomarkers. Return only a JSON array.' },
           { role: 'user', content: prompt },
         ],
-        max_tokens: 1500,
+        max_tokens: 2000,
         temperature: 0.1,
       })
-      rawResponse = stripReasoning(completion.choices[0]?.message?.content || '') || '[]'
+      rawResponse = stripReasoning(typeof answer.content === 'string' ? answer.content : '') || '[]'
     }
 
     let biomarkers: any[] = []

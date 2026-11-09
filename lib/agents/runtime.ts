@@ -75,7 +75,7 @@ export async function runAgent(input: RunInput, ctx: AgentContext, emit: (step: 
     const { message, provider: used } = await deps.chat({ messages, tools: schemas, tool_choice: "auto", max_tokens: 2000, temperature: 0.3 })
     provider = used
     const calls = message.tool_calls || []
-    if (!calls.length) return { reply: message.content || "", steps, provider }
+    if (!calls.length) return { reply: (typeof message.content === "string" ? message.content : ""), steps, provider }
     messages.push({ role: "assistant", content: message.content ?? null, tool_calls: calls })
     for (const [index, call] of calls.entries()) {
       const tool = tools.find(t => t.name === call.function?.name)
@@ -112,5 +112,5 @@ export async function runAgent(input: RunInput, ctx: AgentContext, emit: (step: 
     messages: [...messages, { role: "system", content: "Stop using tools now. Reply to the person with what you found and what is in their queue." }],
     tool_choice: "none", tools: schemas, max_tokens: 800, temperature: 0.3,
   })
-  return { reply: message.content || "", steps, provider: used || provider }
+  return { reply: (typeof message.content === "string" ? message.content : ""), steps, provider: used || provider }
 }
