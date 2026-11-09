@@ -2,7 +2,7 @@
 // Groq, Gemini, OpenRouter, Together and local open-source servers all speak.
 // Providers are tried in order; a rate limit or outage falls through to the next.
 
-export interface ToolCall { id: string; type: "function"; function: { name: string; arguments: string } }
+export interface ToolCall { id: string; type: "function"; function: { name: string; arguments: string }; extra_content?: { google?: { thought_signature?: string } } & Record<string, unknown> }
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool"
   content: string | null
@@ -33,7 +33,9 @@ export function agentProviders(env: Env = process.env): Provider[] {
     list.push({ name: "groq", url: "https://api.groq.com/openai/v1/chat/completions", key: env.GROQ_API_KEY.trim(), model: env.AGENT_MODEL?.trim() || env.GROQ_MODEL?.trim() || "openai/gpt-oss-120b" })
   }
   if (env.GEMINI_API_KEY?.trim()) {
-    list.push({ name: "gemini", url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: env.GEMINI_API_KEY.trim(), model: env.GEMINI_AGENT_MODEL?.trim() || "gemini-2.5-flash" })
+    // Fast model first, then the stronger one. gemini-2.5-flash is overloaded and 2.5-flash-lite is retired for new keys.
+    const models = (env.GEMINI_AGENT_MODELS || env.GEMINI_AGENT_MODEL || "gemini-3.5-flash-lite,gemini-3.5-flash").split(",").map(m => m.trim()).filter(Boolean)
+    for (const model of models) list.push({ name: `gemini:${model}`, url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", key: env.GEMINI_API_KEY.trim(), model })
   }
   return list
 }
@@ -43,10 +45,20 @@ export class LlmError extends Error {
   constructor(message: string, status?: number) { super(message); this.status = status }
 }
 
-/** Keeps only fields every provider accepts when a message is sent back. */
-export function cleanMessage(message: ChatMessage): ChatMessage {
+// Gemini 3 rejects a tool-call turn sent back without its thought signature. Google documents this
+// placeholder for calls that came from another model (a run that switched providers mid-way).
+const SIGNATURE_PLACEHOLDER = "skip_thought_signature_validator"
+
+/** Keeps only fields the provider accepts when a message is sent back. */
+export function cleanMessage(message: ChatMessage, forGemini = false): ChatMessage {
   const clean: ChatMessage = { role: message.role, content: message.content ?? null }
-  if (message.tool_calls?.length) clean.tool_calls = message.tool_calls.map(call => ({ id: call.id, type: "function", function: { name: call.function.name, arguments: call.function.arguments || "{}" } }))
+  if (message.tool_calls?.length) {
+    clean.tool_calls = message.tool_calls.map(call => {
+      const base: ToolCall = { id: call.id, type: "function", function: { name: call.function.name, arguments: call.function.arguments || "{}" } }
+      if (!forGemini) return base
+      return { ...base, extra_content: call.extra_content?.google?.thought_signature ? call.extra_content : { google: { thought_signature: SIGNATURE_PLACEHOLDER } } }
+    })
+  }
   if (message.tool_call_id) clean.tool_call_id = message.tool_call_id
   return clean
 }
@@ -60,7 +72,7 @@ export async function chat(request: ChatRequest, env: Env = process.env): Promis
       const response = await fetch(provider.url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}` },
-        body: JSON.stringify({ model: provider.model, ...request, messages: request.messages.map(cleanMessage) }),
+        body: JSON.stringify({ model: provider.model, ...request, messages: request.messages.map(m => cleanMessage(m, provider.name.startsWith("gemini"))) }),
         signal: AbortSignal.timeout(60_000),
       })
       if (!response.ok) throw new LlmError(`${provider.name} returned ${response.status}`, response.status)
@@ -70,6 +82,8 @@ export async function chat(request: ChatRequest, env: Env = process.env): Promis
       return { message, provider: provider.name }
     } catch (error) {
       lastError = error instanceof LlmError ? error : new LlmError(String((error as Error)?.message || error), 503)
+      // Status only, never content: shows in Vercel logs which provider is failing and why.
+      console.warn(`[agents] ${provider.name} (${provider.model}) failed: ${lastError.status ?? "network"}`)
     }
   }
   throw lastError
