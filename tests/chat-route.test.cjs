@@ -15,7 +15,7 @@ function loadRoute({ authenticated = true, configured = true } = {}) {
   const scope = { exports: {}, Buffer, console, process: { env: configured ? { GROQ_API_KEY: 'synthetic-test-key' } : {} }, require(name) {
     if (name === 'next/server') return { NextResponse: { json } }
     if (name === '@/lib/serverAuth') return { authenticateRequest: async () => authenticated ? { user: { id: 'verified-account' }, supabase: database } : { response: json({ error: 'Sign in' }, { status: 401 }) } }
-    if (name === '@/lib/groq/client') return { GROQ_MODEL: 'synthetic-model', groq: { chat: { completions: { create: async input => { calls.push(input); return { choices: [{ message: { content: 'Synthetic answer' } }] } } } } } }
+    if (name === '@/lib/groq/client') return { GROQ_MODEL: 'synthetic-model', GROQ_VISION_MODEL: 'synthetic-vision', stripReasoning: text => text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim(), groq: { chat: { completions: { create: async input => { calls.push(input); return { choices: [{ message: { content: 'Synthetic answer' } }] } } } } } }
     return require(name)
   } }
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../app/api/chat/route.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, scope)

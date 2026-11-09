@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { groq, GROQ_MODEL } from '@/lib/groq/client'
+import { groq, GROQ_MODEL, GROQ_VISION_MODEL, stripReasoning } from '@/lib/groq/client'
+import { authenticateRequest } from '@/lib/serverAuth'
+import { parsePrintedDate } from '@/lib/printedDate'
 import { inflateSync, inflateRawSync } from 'zlib'
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'fs'
 import { execSync } from 'child_process'
@@ -138,9 +140,11 @@ async function extractPdfText(base64: string): Promise<string> {
 }
 
 // ── Route handler ───────────────────────────────────────────────────────────
-const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct'
 
 export async function POST(req: NextRequest) {
+  // Signed-in users only: this sends documents to the AI provider on the server's credential.
+  const auth = await authenticateRequest(req)
+  if (auth.response) return auth.response
   try {
     const { base64, mimeType, fileName } = await req.json()
 
@@ -149,7 +153,7 @@ export async function POST(req: NextRequest) {
     }
 
     const today = new Date().toISOString().split('T')[0]
-    const FIELDS = `Each item: name (string, e.g. "Glucose", "HDL Cholesterol", "TSH"), value (number only), unit (string, e.g. "mg/dL", "%"), test_date (YYYY-MM-DD, use ${today} if not shown), reference_range_text (string or null), status ("optimal"|"normal"|"borderline"|"high"|"low"|"critical"|null).`
+    const FIELDS = `Each item: name (string, e.g. "Glucose", "HDL Cholesterol", "TSH"), value (number only), unit (string, e.g. "mg/dL", "%"), date_as_printed (the collection or report date exactly as it appears on the report, character for character, or null if none is printed), reference_range_text (string or null), status ("optimal"|"normal"|"borderline"|"high"|"low"|"critical"|null).`
 
     let rawResponse = '[]'
 
@@ -157,7 +161,7 @@ export async function POST(req: NextRequest) {
       // Camera / photo of a lab report → read it directly with the vision model
       const dataUrl = `data:${mimeType};base64,${base64}`
       const completion = await groq.chat.completions.create({
-        model: VISION_MODEL,
+        model: GROQ_VISION_MODEL,
         messages: [
           { role: 'system', content: 'You read photos of medical lab reports and extract the results. Return ONLY a JSON array, no markdown.' },
           {
@@ -171,7 +175,7 @@ export async function POST(req: NextRequest) {
         max_tokens: 1500,
         temperature: 0.1,
       })
-      rawResponse = completion.choices[0]?.message?.content?.trim() || '[]'
+      rawResponse = stripReasoning(completion.choices[0]?.message?.content || '') || '[]'
     } else {
       let rawText = ''
       if (mimeType === 'application/pdf') {
@@ -207,7 +211,7 @@ JSON:`
         max_tokens: 1500,
         temperature: 0.1,
       })
-      rawResponse = completion.choices[0]?.message?.content?.trim() || '[]'
+      rawResponse = stripReasoning(completion.choices[0]?.message?.content || '') || '[]'
     }
 
     let biomarkers: any[] = []
@@ -227,7 +231,8 @@ JSON:`
         name: String(b.name).trim(),
         value: parseFloat(b.value),
         unit: String(b.unit || '').trim(),
-        test_date: b.test_date || today,
+        // Code converts the printed date; a missing or unreadable date falls back to today for the person to review.
+        test_date: parsePrintedDate(b.date_as_printed) || parsePrintedDate(b.test_date) || today,
         reference_range_text: b.reference_range_text || null,
         status: b.status || null,
       }))

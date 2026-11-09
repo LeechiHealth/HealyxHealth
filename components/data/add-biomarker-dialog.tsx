@@ -124,9 +124,10 @@ export function AddBiomarkerDialog({ onSuccess }: { onSuccess?: () => void }) {
 
     try {
       const prepared = await prepareFile(file)
+      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/labs/extract', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}) },
         body: JSON.stringify({ base64: prepared.base64, mimeType: prepared.mimeType, fileName: prepared.name }),
       })
       const data = await res.json()
