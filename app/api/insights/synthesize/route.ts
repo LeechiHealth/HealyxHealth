@@ -1,142 +1,62 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { groq, GROQ_MODEL } from "@/lib/groq/client";
+import { reportedPassages } from "@/lib/researchComparison";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { auth: { persistSession: false } }
-);
-
-async function fetchAbstractWithTimeout(pmid: string, timeoutMs = 2000): Promise<string> {
-  const fetchPromise = fetch(
-    `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&rettype=abstract&retmode=text`
-  ).then((res) => (res.ok ? res.text() : ""));
-  fetchPromise.catch(() => {});
-  const timeoutPromise = new Promise<string>((resolve) => setTimeout(() => resolve(""), timeoutMs));
-  try {
-    const text = await Promise.race([fetchPromise, timeoutPromise]);
-    return (text || "").substring(0, 2000);
-  } catch {
-    return "";
-  }
+function xmlText(xml: string, tag: string): string {
+  const match = xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return (match?.[1] || "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
 }
 
+// This endpoint deliberately provides a source reading aid rather than
+// generating clinical findings or personal relevance from a title alone.
 export async function POST(req: Request) {
+  let body;
+  try { body = await req.json(); }
+  catch { return NextResponse.json({ error: "Send a valid source identifier." }, { status: 400 }); }
+
+  const result = body?.result;
+  const pmid = typeof result?.pmid === "string" && /^\d{1,10}$/.test(result.pmid) ? result.pmid : null;
+  const nctId = typeof result?.nctId === "string" && /^NCT\d{8}$/.test(result.nctId) ? result.nctId : null;
+  if (!pmid && !nctId) return NextResponse.json({ error: "A valid PubMed or ClinicalTrials.gov identifier is required. A title alone is insufficient evidence." }, { status: 400 });
+
   try {
-    const { result, userContext, userId } = await req.json();
-
-    if (!userId) {
-      return NextResponse.json({ error: "User ID required" }, { status: 400 });
+    let abstract = "";
+    let title = "";
+    let url = "";
+    if (pmid) {
+      const response = await fetch(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&retmode=xml`, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error("Source unavailable");
+      const xml = await response.text();
+      if (xmlText(xml, "PMID") !== pmid) return NextResponse.json({ error: "The requested source could not be verified." }, { status: 422 });
+      title = xmlText(xml, "ArticleTitle");
+      abstract = [...xml.matchAll(/<AbstractText(?:\s[^>]*)?>[\s\S]*?<\/AbstractText>/gi)].map(match => xmlText(match[0], "AbstractText")).join("\n");
+      url = `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`;
+    } else {
+      const response = await fetch(`https://clinicaltrials.gov/api/v2/studies/${nctId}`, { signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error("Source unavailable");
+      const data = await response.json();
+      const protocol = data.protocolSection;
+      if (protocol?.identificationModule?.nctId !== nctId) return NextResponse.json({ error: "The requested registration could not be verified." }, { status: 422 });
+      title = protocol.identificationModule.officialTitle || protocol.identificationModule.briefTitle || "";
+      abstract = protocol.descriptionModule?.briefSummary || "";
+      url = `https://clinicaltrials.gov/study/${nctId}`;
     }
-
-    // Check cache first
-    const { data: cached } = await supabase
-      .from("insight_cache")
-      .select("plain_summary, key_findings, profile_relevance, what_to_discuss")
-      .eq("user_id", userId)
-      .eq("result_id", result.id)
-      .maybeSingle();
-
-    if (cached) {
-      return NextResponse.json({ sections: cached, cached: true });
-    }
-
-    // Fetch abstract for pubmed results
-    const abstractText = result.pmid && !result.abstract
-      ? await fetchAbstractWithTimeout(result.pmid, 2000)
-      : (result.abstract || "");
-
-    // Build profile context
-    const hasProfile = userContext && (
-      userContext.conditions?.length > 0 ||
-      userContext.medications?.length > 0 ||
-      userContext.biomarkers?.length > 0
-    );
-
-    const profileBlock = hasProfile
-      ? `Conditions: ${userContext.conditions?.map((c: { name: string }) => c.name).join(", ") || "None"} | Meds: ${
-          userContext.medications?.map((m: { name: string; dosage?: string }) =>
-            `${m.name}${m.dosage ? ` (${m.dosage})` : ""}`
-          ).join(", ") || "None"
-        }`
-      : "No profile data.";
-
-    const prompt = `Analyze this health research for a patient. Be concise and in plain English.
-Title: ${result.title}
-Source: ${result.source}
-${abstractText ? `Abstract: ${abstractText.substring(0, 1500)}` : ""}
-Patient profile: ${profileBlock}
-
-Return a JSON object (no markdown, no code blocks) with these exact keys:
-{"plain_summary":"1-2 sentences: what was studied and the key result","key_findings":"1 sentence: most important finding, include numbers if available","profile_relevance":"How this applies to the patient's conditions/meds. If no connection, say No direct relevance.","what_to_discuss":"1-2 specific questions the patient should ask their doctor"}`;
-
-    let sections;
-
-    try {
-      const completion = await groq.chat.completions.create({
-        model: GROQ_MODEL,
-        messages: [
-          { role: "system", content: "You are a medical research summarizer. Always return valid JSON only, no markdown." },
-          { role: "user", content: prompt },
-        ],
-        max_tokens: 512,
-        temperature: 0.3,
-      });
-
-      const rawText = completion.choices[0]?.message?.content?.trim() || "";
-
-      try {
-        const cleaned = rawText
-          .replace(/^```json\s*/i, "")
-          .replace(/^```\s*/i, "")
-          .replace(/```\s*$/i, "")
-          .trim();
-        sections = JSON.parse(cleaned);
-      } catch {
-        const match = rawText.match(/\{[\s\S]*\}/);
-        sections = match
-          ? JSON.parse(match[0])
-          : {
-              plain_summary: rawText.substring(0, 500),
-              key_findings: null,
-              profile_relevance: null,
-              what_to_discuss: null,
-            };
-      }
-    } catch (aiError: unknown) {
-      const errMsg = aiError instanceof Error ? aiError.message : String(aiError);
-      console.error("Groq synthesis failed:", errMsg);
-
-      const isQuota = errMsg.includes("429") || errMsg.includes("rate") || errMsg.includes("limit");
-
-      sections = {
-        plain_summary: isQuota
-          ? "AI synthesis rate limit reached. Try again in a moment."
-          : `${result.title} — ${result.source}${result.date ? ` (${result.date})` : ""}.`,
-        key_findings: isQuota ? "Groq free tier: 14,400 requests/day limit." : null,
-        profile_relevance: null,
-        what_to_discuss: null,
-      };
-    }
-
-    // Cache the synthesis
-    await supabase.from("insight_cache").insert({
-      user_id: userId,
-      result_id: result.id,
-      result_type: result.type,
-      result_title: result.title,
-      result_source: result.source,
-      plain_summary: sections.plain_summary,
-      key_findings: sections.key_findings,
-      profile_relevance: sections.profile_relevance,
-      what_to_discuss: sections.what_to_discuss,
+    if (!abstract.trim()) return NextResponse.json({ error: "No source abstract or registry summary is available. Open the original source; there is not enough evidence to summarize findings." }, { status: 422 });
+    const population = reportedPassages(abstract, "population");
+    const limitations = reportedPassages(abstract, "limitations");
+    return NextResponse.json({
+      mode: "source-excerpts",
+      cached: false,
+      source: { title, url, id: pmid || nctId },
+      evidence: { abstract, population, limitations },
+      uncertainty: "No findings, agreement between studies, or personal applicability have been inferred. Missing passages require checking the full source.",
+      sections: {
+        plain_summary: abstract,
+        key_findings: "No conclusion generated. Read the original abstract and methods before interpreting results.",
+        profile_relevance: "Personal applicability has not been assessed.",
+        what_to_discuss: "Does the study population match my situation? What were the absolute benefits, harms, and limitations? Would this change our plan?",
+      },
     });
-
-    return NextResponse.json({ sections, cached: false });
-  } catch (error: unknown) {
-    console.error("Synthesis route error:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: "Synthesis failed", details: message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "The original research source is unavailable. Please try again or open the source directly." }, { status: 502 });
   }
 }

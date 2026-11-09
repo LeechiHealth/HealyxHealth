@@ -1,229 +1,34 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase/client"
-import { useAuth } from "@/components/AuthContext"
-import { BiomarkerDetailModal } from "./biomarker-detail-modal"
+import { useState } from 'react'
+import { useBiomarkers } from '@/hooks/useBiomarkers'
+import { buildHealthBrief } from '@/lib/healthBrief'
+import { BiomarkerDetailModal } from './biomarker-detail-modal'
 
-type BiomarkerStatus = "optimal" | "normal" | "out-of-range"
-
-interface Biomarker {
-  id: string
-  name: string
-  category: string
-  status: BiomarkerStatus
-  value: number
-  unit: string
-  test_date: string
-  trend?: number[]
-}
-
-interface BiomarkersListProps {
-  categoryFilter?: string
-}
-
-const statusConfig: Record<BiomarkerStatus, { label: string; dotColor: string; textColor: string }> = {
-  optimal: {
-    label: "Optimal",
-    dotColor: "bg-primary",
-    textColor: "text-primary",
-  },
-  normal: {
-    label: "Normal",
-    dotColor: "bg-yellow-400",
-    textColor: "text-yellow-400",
-  },
-  "out-of-range": {
-    label: "Out of Range",
-    dotColor: "bg-pink-400",
-    textColor: "text-pink-400",
-  },
-}
-
-function TrendChart({ data, status }: { data: number[]; status: BiomarkerStatus }) {
-  if (!data || data.length === 0) return null
-
-  const min = Math.min(...data) * 0.9
-  const max = Math.max(...data) * 1.1
-  const range = max - min
-
-  const points = data.map((value, index) => {
-    const x = (index / (data.length - 1)) * 100
-    const y = 100 - ((value - min) / range) * 100
-    return { x, y }
-  })
-
-  const pathD = points
-    .map((point, index) => (index === 0 ? `M ${point.x} ${point.y}` : `L ${point.x} ${point.y}`))
-    .join(" ")
-
-  const lineColor = status === "out-of-range" 
-    ? "#f472b6" 
-    : status === "optimal" 
-    ? "#22d3ee" 
-    : "#facc15"
-
-  return (
-    <div className="relative w-24 h-10">
-      <div className="absolute right-0 top-0 bottom-0 w-px bg-pink-500/30" />
-      
-      <svg viewBox="0 0 100 100" className="w-full h-full" preserveAspectRatio="none">
-        <path
-          d={pathD}
-          fill="none"
-          stroke={lineColor}
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ filter: `drop-shadow(0 0 4px ${lineColor})` }}
-        />
-        {points.map((point, index) => (
-          <circle
-            key={index}
-            cx={point.x}
-            cy={point.y}
-            r="4"
-            fill={lineColor}
-            style={{ filter: `drop-shadow(0 0 4px ${lineColor})` }}
-          />
-        ))}
-      </svg>
+export function BiomarkersList({ categoryFilter = 'All data' }: { categoryFilter?: string }) {
+  const { biomarkers, loading, error, refresh } = useBiomarkers()
+  const [selected, setSelected] = useState<string | null>(null)
+  const brief = buildHealthBrief(biomarkers)
+  const rows = categoryFilter === 'All data' ? brief.latest : brief.latest.filter(row => getCategoryForBiomarker(row.name) === categoryFilter)
+  if (loading) return <div className="health-panel p-6 text-muted-foreground">Loading lab records…</div>
+  if (error) return <div className="health-panel p-6"><p role="alert">{error}</p><button onClick={refresh} className="text-primary mt-2 font-semibold">Try again</button></div>
+  return <>
+    <div className="health-panel overflow-hidden divide-y divide-border">
+      {rows.length === 0 && <p className="p-6 text-muted-foreground">{brief.latest.length ? `No results in ${categoryFilter}.` : 'No lab results yet. Add your first result to start your record.'}</p>}
+      {rows.map(row => <button key={row.id} onClick={() => setSelected(row.name)} className="w-full text-left grid sm:grid-cols-[minmax(0,1fr)_130px_150px] items-center gap-3 p-5 hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary transition-colors">
+        <div><p className="font-semibold">{row.name}</p><p className="text-xs text-muted-foreground mt-1">{row.dateLabel}</p>{row.change && <p className="text-xs text-muted-foreground mt-2">{row.change} · direction alone does not indicate improvement</p>}</div>
+        <span className={`text-xs font-semibold ${row.classification === 'flagged' ? 'text-amber-600 dark:text-amber-300' : row.classification === 'in-range' ? 'text-primary' : 'text-muted-foreground'}`}>{row.classification === 'flagged' ? `Recorded: ${row.status}` : row.classification === 'in-range' ? 'Recorded in range' : 'Unclassified'}</span>
+        <div className="sm:text-right"><p className="text-lg font-semibold tabular-nums">{row.value ?? '—'} <span className="text-xs font-normal text-muted-foreground">{row.unit}</span></p>{row.reference_range_text && <p className="text-xs text-muted-foreground mt-1">Lab range: {row.reference_range_text}</p>}</div>
+      </button>)}
     </div>
-  )
+    {selected && <BiomarkerDetailModal biomarkerName={selected} open onClose={() => setSelected(null)} onUpdate={refresh} />}
+  </>
 }
-
-export function BiomarkersList({ categoryFilter = "All data" }: BiomarkersListProps) {
-  const { user } = useAuth()
-  const [biomarkers, setBiomarkers] = useState<Biomarker[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedBiomarker, setSelectedBiomarker] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-
-  async function fetchBiomarkers() {
-    if (!user) return
-
-    try {
-      const { data, error } = await supabase
-        .from('biomarkers')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('test_date', { ascending: false })
-
-      if (error) throw error
-
-      const grouped = data.reduce((acc: Record<string, any[]>, item) => {
-        if (!acc[item.name]) acc[item.name] = []
-        acc[item.name].push(item)
-        return acc
-      }, {})
-
-      const processed = Object.entries(grouped).map(([name, records]) => {
-        const latest = records[0]
-        const trend = records.slice(0, 5).reverse().map(r => r.value)
-        
-        let status: BiomarkerStatus = "normal"
-        if (name.includes("Cholesterol") && latest.value > 100) status = "out-of-range"
-        else if (trend.length > 1 && trend[trend.length - 1] < trend[0]) status = "optimal"
-
-        return {
-          id: latest.id,
-          name: latest.name,
-          category: getCategoryForBiomarker(latest.name),
-          status,
-          value: latest.value,
-          unit: latest.unit,
-          test_date: latest.test_date,
-          trend: trend.length > 1 ? trend : undefined,
-        }
-      })
-
-      setBiomarkers(processed)
-    } catch (error) {
-      console.error('Error fetching biomarkers:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchBiomarkers()
-  }, [user])
-
-  if (loading) {
-    return <div className="glass rounded-2xl p-6 text-center text-muted-foreground">Loading biomarkers...</div>
-  }
-
-  if (biomarkers.length === 0) {
-    return <div className="glass rounded-2xl p-6 text-center text-muted-foreground">No biomarkers yet. Add your first lab result!</div>
-  }
-
-  // Filter biomarkers by category
-  const filteredBiomarkers = categoryFilter === "All data" 
-    ? biomarkers 
-    : biomarkers.filter(b => b.category === categoryFilter)
-
-  return (
-    <>
-      <div className="glass rounded-2xl divide-y divide-border">
-        {filteredBiomarkers.length === 0 ? (
-          <div className="p-6 text-center text-muted-foreground">
-            No biomarkers in {categoryFilter}
-          </div>
-        ) : (
-          filteredBiomarkers.map((biomarker) => {
-            const config = statusConfig[biomarker.status]
-            return (
-              <div
-                key={biomarker.id}
-                onClick={() => {
-                  setSelectedBiomarker(biomarker.name)
-                  setModalOpen(true)
-                }}
-                className="flex items-center justify-between px-5 py-4 hover:bg-secondary/50 transition-colors cursor-pointer"
-              >
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{biomarker.name}</p>
-                  <p className="text-sm text-muted-foreground">{biomarker.category}</p>
-                </div>
-
-                <div className="flex items-center gap-2 w-32">
-                  <span className={`h-2 w-2 rounded-full ${config.dotColor}`} style={{ boxShadow: `0 0 8px currentColor` }} />
-                  <span className={`text-sm font-medium ${config.textColor}`}>
-                    {config.label}
-                  </span>
-                </div>
-
-                <div className="w-24 text-right">
-                  <span className="font-medium text-foreground">{biomarker.value}</span>
-                  <span className="text-sm text-muted-foreground ml-1">{biomarker.unit}</span>
-                </div>
-
-                <div className="w-28 flex justify-end">
-                  {biomarker.trend && <TrendChart data={biomarker.trend} status={biomarker.status} />}
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
-
-      {selectedBiomarker && (
-        <BiomarkerDetailModal
-          biomarkerName={selectedBiomarker}
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          onUpdate={fetchBiomarkers}
-        />
-      )}
-    </>
-  )
-}
-
 function getCategoryForBiomarker(name: string): string {
-  if (name.includes("Cholesterol") || name.includes("ApoB") || name.includes("Apolipoprotein")) return "Heart health"
-  if (name.includes("Vitamin") || name.includes("B12") || name.includes("Iron")) return "Nutrients"
-  if (name.includes("TSH") || name.includes("Thyroid")) return "Thyroid Health"
-  if (name.includes("Glucose") || name.includes("A1C") || name.includes("Hemoglobin")) return "Metabolic Health"
-  if (name.includes("Ferritin")) return "Blood"
-  return "General"
+  if (/cholesterol|apob|apolipoprotein/i.test(name)) return 'Heart health'
+  if (/vitamin|b12|iron/i.test(name)) return 'Nutrients'
+  if (/tsh|thyroid/i.test(name)) return 'Thyroid Health'
+  if (/glucose|a1c|hemoglobin/i.test(name)) return 'Metabolic Health'
+  if (/ferritin/i.test(name)) return 'Blood'
+  return 'General'
 }

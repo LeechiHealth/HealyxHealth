@@ -91,13 +91,21 @@ export function BiomarkerDetailModal({ biomarkerName, open, onClose, onUpdate }:
   }
 
   async function saveEdit(id: string) {
+    const original = records.find(record => record.id === id)
+    const value = Number(editForm.value)
+    if (!editForm.value.trim() || !Number.isFinite(value) || !editForm.unit.trim() || !editForm.date) {
+      alert('Enter a numeric value, unit, and measurement date.')
+      return
+    }
+    const measurementChanged = !original || Number(original.value) !== value || original.unit?.trim() !== editForm.unit.trim()
     try {
       const { error } = await supabase
         .from('biomarkers')
         .update({
-          value: parseFloat(editForm.value),
-          unit: editForm.unit,
+          value,
+          unit: editForm.unit.trim(),
           test_date: editForm.date,
+          ...(measurementChanged ? { status: null, reference_range_text: null } : {}),
         })
         .eq('id', id)
 
@@ -204,6 +212,7 @@ export function BiomarkerDetailModal({ biomarkerName, open, onClose, onUpdate }:
                 {editingId === record.id ? (
                   // Edit Mode
                   <div>
+                    <p className="text-xs text-muted-foreground mb-3">Changing a value or unit clears its saved lab flag and reference range. Verify these against the original report; the edited result will remain unclassified.</p>
                     <div className="grid grid-cols-3 gap-3 mb-3">
                       <div>
                         <Label>Value</Label>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { reportedPassages, studyLabel, toggleComparison, buildDiscussionBrief } from "@/lib/researchComparison";
 import { Header } from "@/components/header";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/components/AuthContext";
@@ -110,9 +111,15 @@ function ResultCard({
   index,
   isBookmarked,
   onBookmarkToggle,
+  selected = false,
+  comparisonFull = false,
+  onCompare,
 }: {
   result: SearchResult;
   index: number;
+  selected?: boolean;
+  comparisonFull?: boolean;
+  onCompare?: (result: SearchResult) => void;
   isBookmarked: boolean;
   onBookmarkToggle: (result: SearchResult) => void;
 }) {
@@ -142,6 +149,7 @@ function ResultCard({
   return (
     <div className="group relative border border-border rounded-2xl bg-card hover:border-primary/30 transition-all duration-200 p-5 sm:p-6">
 
+      {onCompare && <div className="flex justify-end mb-3"><button onClick={() => onCompare(result)} aria-pressed={selected} disabled={!selected && comparisonFull} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40 ${selected ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>{selected ? "✓ In comparison" : comparisonFull ? "3 sources selected" : "+ Compare source"}</button></div>}
       {/* Number + Title row */}
       <div className="flex gap-4 mb-3">
         <span className="flex-shrink-0 w-7 h-7 rounded-full bg-white/8 flex items-center justify-center text-xs font-semibold text-muted-foreground mt-0.5">
@@ -403,6 +411,8 @@ export default function InsightsPage() {
   const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const [comparison, setComparison] = useState<SearchResult[]>([]);
+  const [briefOpen, setBriefOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -707,6 +717,25 @@ export default function InsightsPage() {
           Abstracts come from the original sources. Study type, population, date, and limitations matter; a matching paper does not establish a diagnosis. Trial registrations describe research, not proven treatments.
         </div>
         {searchError && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 mb-4 text-sm"><p>{searchError}</p><button className="mt-2 font-semibold text-primary" onClick={() => handleSearch(searchQuery)}>Try again</button></div>}
+        {comparison.length > 0 && <section aria-label="Source comparison" className="rounded-3xl border border-primary/25 bg-card p-5 sm:p-6 mb-6">
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-4"><div><p className="text-xs font-bold uppercase tracking-widest text-primary">Your evidence workspace</p><h2 className="text-xl font-semibold mt-2">Compare {comparison.length} of 3 sources</h2><p className="text-sm text-muted-foreground mt-1">Read side by side. Similar topics do not mean the findings agree.</p></div><button onClick={() => { setComparison([]); setBriefOpen(false); }} className="text-xs font-semibold text-muted-foreground hover:text-foreground">Clear comparison</button></div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            {comparison.map(source => <article key={source.id} className="min-w-0 rounded-2xl border border-border bg-background/50 p-4">
+              <button aria-label={`Remove ${source.title} from comparison`} onClick={() => setComparison(current => current.filter(item => item.id !== source.id))} className="float-right ml-2 text-xs text-muted-foreground">Remove</button>
+              <a href={source.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-sm hover:text-primary leading-relaxed">{source.title}</a>
+              <p className="text-xs text-muted-foreground mt-2">{source.source} · {source.year || "Date not supplied"}</p>
+              <dl className="text-xs mt-4 space-y-4 leading-relaxed">
+                <div><dt className="font-semibold">Study design</dt><dd className="text-muted-foreground mt-1">{studyLabel(source)}</dd></div>
+                {source.status && <div><dt className="font-semibold">Registration status</dt><dd className="text-muted-foreground mt-1">{source.status}{source.phase ? ` · ${source.phase}` : ""}</dd></div>}
+                {(["population", "limitations"] as const).map(kind => { const passages = reportedPassages(source.abstract, kind); return <div key={kind}><dt className="font-semibold">{kind === "population" ? "Population · exact excerpt" : "Limitations · exact excerpt"}</dt><dd className="text-muted-foreground mt-1">{passages.length ? passages.map((text, i) => <p key={i} className="mb-2">“{text}”</p>) : "Not explicitly identified in the available excerpt. Check the full paper; absence here does not mean none exist."}</dd></div>; })}
+              </dl>
+              <details className="mt-4 border-t border-border pt-3"><summary className="cursor-pointer text-xs font-semibold">{source.type === "clinical-trial" ? "Original registry excerpt" : "Original abstract excerpt"}</summary><p className="mt-3 text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{source.abstract || "No abstract supplied. Open the original source before drawing conclusions."}</p><a href={source.url} target="_blank" rel="noopener noreferrer" className="inline-block mt-3 text-xs font-semibold text-primary">Read original source ↗</a></details>
+            </article>)}
+          </div>
+          <p className="text-xs text-muted-foreground mt-4 leading-relaxed">Excerpts may be truncated by the source search. Population and limitation passages are matched by explicit wording, not a full appraisal. No agreement, evidence strength, or personal relevance has been inferred.</p>
+          <button onClick={() => setBriefOpen(value => !value)} className="mt-4 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground">{briefOpen ? "Hide discussion brief" : "Prepare clinician discussion"}</button>
+          {briefOpen && <div className="mt-4"><label htmlFor="research-brief" className="text-xs font-semibold">Your source-linked brief · select and copy</label><textarea id="research-brief" readOnly value={buildDiscussionBrief(comparison, searchQuery)} rows={13} className="w-full mt-2 rounded-xl border border-border bg-background p-4 text-xs leading-relaxed" /></div>}
+        </section>}
         {/* Results list */}
         <div className="space-y-3">
           {searching ? (
@@ -719,6 +748,9 @@ export default function InsightsPage() {
                 key={r.id}
                 result={r}
                 index={i}
+                selected={comparison.some(source => source.id === r.id)}
+                comparisonFull={comparison.length >= 3}
+                onCompare={source => setComparison(current => toggleComparison(current, source))}
                 isBookmarked={bookmarkedIds.has(r.id)}
                 onBookmarkToggle={handleBookmarkToggle}
               />

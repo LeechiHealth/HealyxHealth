@@ -3,23 +3,18 @@
 import { FlaskConical, TrendingUp, MessageCircle, Upload } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { buildHealthBrief } from "@/lib/healthBrief"
 import { useBiomarkers } from "@/hooks/useBiomarkers"
 
 export function HealthScoreCards() {
   const { biomarkers, loading } = useBiomarkers()
   const router = useRouter()
 
-  // Get most recent biomarker as sample
-  const recentBiomarker = biomarkers && biomarkers.length > 0 ? biomarkers[0] : null
-  const biomarkerCount = biomarkers?.length || 0
-
-  // Get last upload date
-  const lastUploadDate = recentBiomarker
-    ? new Date(recentBiomarker.test_date).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      })
-    : 'Never'
+  const brief = buildHealthBrief(biomarkers)
+  const biomarkerCount = brief.latest.length
+  const lastUploadDate = brief.lastRecorded
+    ? new Date(`${brief.lastRecorded}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : 'No verified date'
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -31,7 +26,7 @@ export function HealthScoreCards() {
             <p className="text-sm font-medium text-primary/80">Recent Labs</p>
           </div>
           <p className="text-3xl font-light text-primary">
-            {loading ? "..." : biomarkerCount} {biomarkerCount === 1 ? "report" : "reports"}
+            {loading ? "..." : biomarkerCount} {biomarkerCount === 1 ? "marker" : "markers"}
           </p>
           <p className="text-xs text-primary/60 mt-3">
             Last uploaded {lastUploadDate}

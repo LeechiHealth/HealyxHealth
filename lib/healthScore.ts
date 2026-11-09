@@ -11,7 +11,7 @@ export const scoreBMI = (bmi?: number | null) =>
   bmi == null || !Number.isFinite(bmi) || bmi <= 0 ? null : bmi < 25 ? 100 : bmi < 30 ? 70 : bmi < 35 ? 30 : bmi < 40 ? 15 : 0
 
 export function scoreBP(sys?: number | null, dia?: number | null) {
-  if (sys == null || dia == null || !Number.isFinite(sys) || !Number.isFinite(dia) || sys <= 0 || dia <= 0) return null
+  if (sys == null || dia == null || !Number.isFinite(sys) || !Number.isFinite(dia) || sys <= 0 || dia <= 0 || sys <= dia) return null
   // The more severe of either reading determines the band.
   if (sys >= 160 || dia >= 100) return 0
   if (sys >= 140 || dia >= 90) return 25
@@ -21,7 +21,7 @@ export function scoreBP(sys?: number | null, dia?: number | null) {
 }
 
 export function scoreGlucose(hba1c?: number | null, fasting?: number | null) {
-  if (hba1c != null && Number.isFinite(hba1c) && hba1c > 0) {
+  if (hba1c != null && Number.isFinite(hba1c) && hba1c > 0 && hba1c <= 100) {
     if (hba1c < 5.7) return 100
     if (hba1c < 6.5) return 60
     if (hba1c < 7) return 40
@@ -54,7 +54,7 @@ export function scoreSleep(hrs?: number | null) {
 }
 
 export function scoreActivity(minPerWeek?: number | null) {
-  if (minPerWeek == null || !Number.isFinite(minPerWeek) || minPerWeek < 0) return null
+  if (minPerWeek == null || !Number.isFinite(minPerWeek) || minPerWeek < 0 || minPerWeek > 7 * 24 * 60) return null
   if (minPerWeek >= 150) return 100
   if (minPerWeek >= 120) return 90
   if (minPerWeek >= 90) return 80
@@ -66,10 +66,12 @@ export function scoreActivity(minPerWeek?: number | null) {
 
 export function scoreNicotine(status?: string | null) {
   if (!status) return null
-  const s = status.toLowerCase()
-  if (s.includes("never")) return 100
-  if (s.includes("former") || s.includes("quit")) return 75
-  if (s.includes("current") || s.includes("smok") || s.includes("vap")) return 0
+  // Only explicit intake values are understood. “Not a current smoker” and
+  // “never quit” must not be interpreted through substring matches.
+  const s = status.trim().toLowerCase()
+  if (s === "never") return 100
+  if (s === "former") return 75
+  if (s === "current") return 0
   return null
 }
 
@@ -130,12 +132,13 @@ const PHENO_KEYS: (keyof PhenoAgeLabs)[] = [
 export function computePhenoAge(L: Partial<PhenoAgeLabs>): { phenoAge: number; delta: number; chronological: number } | null {
   for (const k of PHENO_KEYS) {
     const v = (L as any)[k]
-    if (v == null || isNaN(Number(v))) return null
+    if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return null
   }
+  if (L.lymphocyte_pct! > 100 || L.rdw_pct! > 100) return null
   const albumin = Number(L.albumin_gdl) * 10                          // g/dL → g/L
   const creat = Number(L.creatinine_mgdl) * 88.4017                   // mg/dL → umol/L
   const glucose = Number(L.glucose_mgdl) * 0.0555                     // mg/dL → mmol/L
-  const lnCRP = Math.log(Math.max(Number(L.crp_mgl) * 0.1, 0.01))     // mg/L → mg/dL, then ln (guarded)
+  const lnCRP = Math.log(Number(L.crp_mgl) * 0.1)     // mg/L → mg/dL, then ln; nonpositive CRP is ineligible
   const age = Number(L.ageYears)
 
   const xb = -19.907
@@ -152,9 +155,68 @@ export function computePhenoAge(L: Partial<PhenoAgeLabs>): { phenoAge: number; d
 
   const g = 0.0076927
   const mort = 1 - Math.exp((-Math.exp(xb) * (Math.exp(120 * g) - 1)) / g)
-  const m = Math.min(Math.max(mort, 1e-9), 1 - 1e-9)
+  // Saturation is numerical failure, not evidence for an extreme age.
+  if (!Number.isFinite(xb) || !Number.isFinite(mort) || mort <= 0 || mort >= 1) return null
+  const m = mort
   const phenoAge = 141.50225 + Math.log(-0.00553 * Math.log(1 - m)) / 0.090165
+  if (!Number.isFinite(phenoAge) || phenoAge < 0) return null
   const pa = Math.round(phenoAge * 10) / 10
   return { phenoAge: pa, delta: Math.round((pa - age) * 10) / 10, chronological: age }
 }
 
+
+// Data eligibility is separate from scoring bands. Unknown units and dates are
+// missing evidence, never implicit US units or a healthy value.
+export interface LabObservation { name?: unknown; value?: unknown; unit?: unknown; test_date?: unknown }
+export interface FactorProvenance { date: string | null; source: string; reason: string | null }
+export function finiteObservation(value: unknown): number | null {
+  if (typeof value !== "number" && typeof value !== "string") return null
+  if (typeof value === "string" && !value.trim()) return null
+  if (typeof value === "string" && !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())) return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+export function observationDate(value: unknown, now = new Date()): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value)) return null
+  if (value.includes("T") && (!Number.isFinite(Date.parse(value)) || Date.parse(value) > now.getTime())) return null
+  const day = value.slice(0, 10)
+  const date = new Date(day + "T00:00:00Z")
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== day || day > now.toISOString().slice(0, 10)) return null
+  return day
+}
+const labName = (row: LabObservation) => typeof row.name === "string" ? row.name.trim().toLowerCase().replace(/\s+/g, " ") : ""
+const labUnit = (row: LabObservation) => typeof row.unit === "string" ? row.unit.toLowerCase().replace(/\s+/g, "") : ""
+
+export function prepareScoringLabs(rows: LabObservation[], now = new Date()) {
+  const named = (names: string[]) => rows.filter(r => names.includes(labName(r)))
+  const latest = (matches: LabObservation[]) => matches
+    .filter(r => observationDate(r.test_date, now))
+    .sort((a, b) => String(b.test_date).localeCompare(String(a.test_date)))[0]
+  const eligible = (matches: LabObservation[], unit: string): { value: number | null; date: string | null; reason: string | null } => {
+    const row = latest(matches)
+    const date = row ? observationDate(row.test_date, now) : null
+    if (!row) return { value: null, date: null, reason: "A valid dated observation is needed." }
+    const sameDay = matches.filter(r => observationDate(r.test_date, now) === date)
+    const values = sameDay.map(r => finiteObservation(r.value))
+    if (sameDay.some(r => labUnit(r) !== unit) || values.some(v => v == null || v <= 0) || new Set(values).size !== 1) {
+      return { value: null, date, reason: `Needs an unambiguous result in ${unit}.` }
+    }
+    return { value: values[0], date, reason: null }
+  }
+  const total = eligible(named(["total cholesterol", "cholesterol, total"]), "mg/dl")
+  const hdl = eligible(named(["hdl", "hdl-c", "hdl cholesterol", "cholesterol, hdl"]), "mg/dl")
+  const a1c = eligible(named(["hba1c", "hb a1c", "a1c", "hemoglobin a1c", "haemoglobin a1c", "hemoglobin a1c (hba1c)"]), "%")
+  const fasting = eligible(named(["fasting glucose", "glucose, fasting", "fasting blood glucose", "glucose (fasting)"]), "mg/dl")
+  const validA1c = a1c.value != null && a1c.value <= 100
+  const lipidsValid = total.value != null && hdl.value != null && total.date === hdl.date && total.value > hdl.value
+  const glucose = validA1c ? a1c : fasting
+  return {
+    nonHDL: lipidsValid ? total.value! - hdl.value! : null,
+    hba1c: validA1c ? a1c.value : null,
+    fastingGlucose: fasting.value,
+    provenance: {
+      lipids: { date: lipidsValid ? total.date : null, source: "Total cholesterol − HDL, mg/dL", reason: lipidsValid ? null : "Needs compatible total cholesterol and HDL from the same test date; unmatched or conflicting results are excluded." },
+      glucose: { date: glucose.value != null ? glucose.date : null, source: validA1c ? "HbA1c, %" : "Explicitly fasting glucose, mg/dL", reason: glucose.value != null ? null : "Needs a dated HbA1c in % or explicitly fasting glucose in mg/dL. Random glucose is excluded." },
+    } satisfies Record<string, FactorProvenance>,
+  }
+}

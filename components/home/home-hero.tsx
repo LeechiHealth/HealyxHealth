@@ -24,6 +24,20 @@ export function HomeHero() {
   const { messages, loading, sendMessage, clearChat } = useChat()
 
   const [input, setInput] = React.useState("")
+  const composerRef = React.useRef<HTMLInputElement>(null)
+  const messageListRef = React.useRef<HTMLDivElement>(null)
+
+  // Dashboard actions prepare a question; the user reviews it before sending.
+  React.useEffect(() => {
+    const prepareQuestion = (event: Event) => {
+      const question = (event as CustomEvent<{ question?: string }>).detail?.question
+      if (typeof question !== "string" || !question.trim()) return
+      setInput(question.trim().slice(0, 4000))
+      composerRef.current?.focus({ preventScroll: true })
+    }
+    window.addEventListener("healyx:ask", prepareQuestion)
+    return () => window.removeEventListener("healyx:ask", prepareQuestion)
+  }, [])
   const [isMenuOpen, setIsMenuOpen] = React.useState(false)
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
 
@@ -32,16 +46,12 @@ export function HomeHero() {
   const [attachedFile, setAttachedFile] = React.useState<FileAttachment | null>(null)
   const [fileError, setFileError] = React.useState<string | null>(null)
 
-  // Auto-scroll the chat to the latest message
-  const messagesEndRef = React.useRef<HTMLDivElement>(null)
+  // Scroll only inside the conversation after a message, never the dashboard.
   React.useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
+    if (!messages.length) return
+    const list = messageListRef.current
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" })
   }, [messages, loading])
-
-  const firstName = (() => {
-    const n = (user as any)?.user_metadata?.first_name || (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || ""
-    return typeof n === "string" && n.trim() ? n.trim().split(" ")[0] : "there"
-  })()
 
   // Recording state
   const [isRecording, setIsRecording] = React.useState(false)
@@ -264,7 +274,7 @@ export function HomeHero() {
       </Dialog>
 
       {/* Main Content */}
-      <div className="relative w-full overflow-hidden">
+      <div id="health-chat" className="relative w-full scroll-mt-24 overflow-hidden">
         <div className="flex items-center justify-between px-6 pt-6 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"><span>Health companion</span><button onClick={() => setSidebarOpen(true)} className="text-primary normal-case tracking-normal">History</button></div>
         {/* Hero content */}
         <div className="relative z-10 p-5 sm:p-6">
@@ -276,7 +286,7 @@ export function HomeHero() {
                   Your health, <span className="text-primary">in conversation.</span>
                 </h1>
                 <p className="text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed">
-                  Make sense of a result, prepare for an appointment, or explore a question.
+                  Understand your results, explore what might matter, and choose a useful next step.
                 </p>
               </div>
             )}
@@ -285,9 +295,22 @@ export function HomeHero() {
             <div className="w-full flex justify-center">
               <div className="w-full max-w-2xl">
 
+                {messages.length === 0 && (
+                  <div className="mb-5 grid gap-2 sm:grid-cols-2" aria-label="Conversation starters">
+                    {[
+                      { label: "Understand a result", question: "Help me understand my latest recorded lab results. Which results need context, and what questions should I ask my clinician? If no results are available, tell me what to upload." },
+                      { label: "Find my next step", question: "Help me choose a practical next step toward understanding my health, based on my saved records. Separate what is recorded from what is unknown, and suggest questions I can explore in Research." },
+                    ].map(({ label, question }) => (
+                      <button key={label} type="button" onClick={() => { setInput(question); composerRef.current?.focus({ preventScroll: true }) }} className="rounded-xl border border-border bg-secondary/40 px-4 py-3 text-left text-sm font-semibold transition-colors hover:border-primary/40 hover:bg-primary/5">
+                        {label}<span className="mt-1 block text-xs font-normal text-muted-foreground">Prepare a question →</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Messages */}
                 {messages.length > 0 && (
-                  <div className="mb-4 space-y-3 max-h-[58vh] overflow-y-auto pr-2 scroll-smooth">
+                  <div ref={messageListRef} role="log" aria-label="Health conversation" aria-live="polite" className="mb-4 space-y-3 max-h-[58vh] overflow-y-auto overscroll-contain pr-2 scroll-smooth">
                     {messages.map((msg) => (
                       <div
                         key={msg.id}
@@ -327,7 +350,6 @@ export function HomeHero() {
                         </div>
                       </div>
                     )}
-                    <div ref={messagesEndRef} />
                   </div>
                 )}
 
@@ -348,6 +370,9 @@ export function HomeHero() {
                 {/* Input bar */}
                 <div className="relative">
                   <Input
+                    ref={composerRef}
+                    aria-label="Question for your health guide"
+                    maxLength={4000}
                     placeholder={attachedFile ? "Add a message or send file directly…" : "Ask anything about your health…"}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -457,6 +482,9 @@ export function HomeHero() {
                     </Button>
                   </div>
                 </div>
+                <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                  AI guidance, not a diagnosis. Sending a question shares your saved conditions, medications, recent labs, and any attachment with the AI provider. This chat does not search the web; use Research to find publications.
+                </p>
 
               </div>
             </div>

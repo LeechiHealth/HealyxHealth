@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase/client'
 import { useAuth } from '@/components/AuthContext'
 
@@ -8,74 +8,35 @@ export interface FileAttachment {
   name: string
 }
 
-// Build a compact, personalized health summary so the AI actually knows the user.
-async function buildHealthContext(userId: string, email?: string | null): Promise<string> {
-  try {
-    const [profileRes, condRes, medRes, bioRes] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('full_name, date_of_birth, gender, height_inches, weight_lbs, blood_type')
-        .eq('id', userId)
-        .maybeSingle(),
-      supabase.from('conditions').select('name, status, severity').eq('user_id', userId).limit(40),
-      supabase.from('medications').select('name, dosage, frequency').eq('user_id', userId).limit(40),
-      supabase
-        .from('biomarkers')
-        .select('name, value, unit, status, test_date')
-        .eq('user_id', userId)
-        .order('test_date', { ascending: false })
-        .limit(40),
-    ])
-
-    const p: any = profileRes.data
-    const lines: string[] = []
-
-    const person: string[] = []
-    if (p?.full_name) person.push(p.full_name)
-    if (p?.gender) person.push(p.gender)
-    if (p?.date_of_birth) {
-      const age = Math.floor((Date.now() - new Date(p.date_of_birth).getTime()) / 31557600000)
-      if (age > 0 && age < 130) person.push(`${age}y`)
-    }
-    if (p?.height_inches) person.push(`${Math.floor(p.height_inches / 12)}'${Math.round(p.height_inches % 12)}"`)
-    if (p?.weight_lbs) person.push(`${p.weight_lbs} lbs`)
-    if (p?.blood_type) person.push(`blood type ${p.blood_type}`)
-    if (person.length) lines.push(`Profile: ${person.join(', ')}.`)
-
-    const conds = (condRes.data || []) as any[]
-    if (conds.length) {
-      lines.push('Conditions: ' + conds.map(c => `${c.name}${c.status ? ` (${c.status})` : ''}`).join('; ') + '.')
-    }
-
-    const meds = (medRes.data || []) as any[]
-    if (meds.length) {
-      lines.push('Medications: ' + meds.map(m => `${m.name}${m.dosage ? ` ${m.dosage}` : ''}${m.frequency ? `, ${m.frequency}` : ''}`).join('; ') + '.')
-    }
-
-    const bios = (bioRes.data || []) as any[]
-    if (bios.length) {
-      const flagged = bios.filter(b => b.status && !['optimal', 'normal'].includes(b.status))
-      const show = (flagged.length ? flagged : bios).slice(0, 20)
-      lines.push('Recent lab results' + (flagged.length ? ' (flagged first)' : '') + ': ' +
-        show.map(b => `${b.name} ${b.value}${b.unit ? ` ${b.unit}` : ''}${b.status ? ` [${b.status}]` : ''}`).join('; ') + '.')
-    }
-
-    if (!lines.length) return ''
-    return `The user you are speaking with has the following health record on file. Use it to personalize every answer and refer to it directly when asked about "my" profile, conditions, medications, or labs:\n${lines.join('\n')}`
-  } catch {
-    return ''
-  }
-}
-
 export function useChat() {
   const { user } = useAuth()
   const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
 
-  const sendMessage = async (content: string, fileData?: FileAttachment) => {
-    if (!user || loading || (!content.trim() && !fileData)) return
+  const accountRef = useRef(user?.id)
+  accountRef.current = user?.id
+  const requestRef = useRef<AbortController | null>(null)
+  const generation = useRef(0)
 
+  useEffect(() => {
+    generation.current += 1
+    requestRef.current?.abort()
+    requestRef.current = null
+    setMessages([])
+    setConversationId(null)
+    setLoading(false)
+    return () => { generation.current += 1; requestRef.current?.abort() }
+  }, [user?.id])
+
+  const sendMessage = async (content: string, fileData?: FileAttachment) => {
+    if (!user || requestRef.current || loading || (!content.trim() && !fileData)) return
+
+    const controller = new AbortController()
+    requestRef.current = controller
+    const requestGeneration = generation.current
+    const isCurrent = () => generation.current === requestGeneration && accountRef.current === user.id && !controller.signal.aborted
+    const timeout = setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), 60_000)
     setLoading(true)
 
     const displayContent = content.trim() || (fileData ? `📎 ${fileData.name}` : '')
@@ -90,6 +51,7 @@ export function useChat() {
           .select()
           .single()
 
+        if (!isCurrent()) return
         if (convError) {
           console.error('Failed to create conversation:', convError)
         } else if (conv) {
@@ -121,22 +83,28 @@ export function useChat() {
         })
       }
 
+      if (!isCurrent()) return
+
       // Build conversation history for context (last 10 turns)
       const history = messages.filter(m => !m.isError).slice(-10).map(m => ({ role: m.role, content: m.content.slice(0, 4000) }))
 
-      // Pull the user's personalized health record so the AI can speak to it
-      const healthContext = await buildHealthContext(user.id, user.email)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!isCurrent()) return
+      if (!session?.access_token || session.user.id !== user.id) {
+        throw new Error('Your session has expired. Sign in again to use your health guide.')
+      }
 
       // Call AI API
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, fileData, conversationHistory: history, healthContext: healthContext.slice(0, 12000) }),
-        signal: AbortSignal.timeout(60_000),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ message: content, fileData, conversationHistory: history }),
+        signal: controller.signal,
       })
 
       const data = await response.json().catch(() => ({ error: 'The health guide returned an unreadable response. Please try again shortly.' }))
 
+      if (!isCurrent()) return
       if (!response.ok) {
         throw new Error(data.error || `API error ${response.status}`)
       }
@@ -162,6 +130,8 @@ export function useChat() {
         }
       }
     } catch (error) {
+      // A cleared conversation or changed account must never receive an old reply.
+      if (generation.current !== requestGeneration || accountRef.current !== user.id) return
       const msg = error instanceof TypeError
         ? 'Could not reach the health guide. Check your connection and try again.'
         : error instanceof Error ? error.message : 'The health guide could not respond. Please try again.'
@@ -178,11 +148,19 @@ export function useChat() {
         created_at: new Date().toISOString(),
       }])
     } finally {
-      setLoading(false)
+      clearTimeout(timeout)
+      if (requestRef.current === controller) {
+        requestRef.current = null
+        setLoading(false)
+      }
     }
   }
 
   const clearChat = async () => {
+    generation.current += 1
+    requestRef.current?.abort()
+    requestRef.current = null
+    setLoading(false)
     setMessages([])
     setConversationId(null)
   }
