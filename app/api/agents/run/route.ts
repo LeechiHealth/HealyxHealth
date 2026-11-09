@@ -34,7 +34,7 @@ async function persist(db: any, userId: string, agent: AgentId, userText: string
 
 function friendlyError(error: unknown): string {
   const status = (error as { status?: number })?.status
-  if (status === 429) return "The AI provider's limit is reached for now. Please try again in a little while."
+  if (status === 429 || status === 503) return "The AI providers are at their limits right now. Please try again in a few minutes."
   if ((error as Error)?.message === "AI_NOT_CONFIGURED") return "Agents are not connected yet. The site administrator needs to configure an AI provider key."
   return "Agents are temporarily unavailable. Please try again."
 }

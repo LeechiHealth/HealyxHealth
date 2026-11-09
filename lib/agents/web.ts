@@ -56,7 +56,7 @@ async function groqBrowse(question: string, env: Env): Promise<WebFinding> {
 }
 
 async function geminiSearch(question: string, env: Env): Promise<WebFinding> {
-  const model = env.GEMINI_AGENT_MODEL?.trim() || "gemini-2.5-flash"
+  const model = env.GEMINI_SEARCH_MODEL?.trim() || "gemini-3.5-flash-lite"
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY!.trim() },
@@ -81,10 +81,10 @@ export async function browseWeb(question: string, env: Env = process.env): Promi
   const q = question.trim().slice(0, 400)
   if (!q) throw new Error("EMPTY_QUESTION")
   if (env.GEMINI_API_KEY?.trim()) {
-    try { return await geminiSearch(q, env) } catch { /* fall through */ }
+    try { return await geminiSearch(q, env) } catch (error) { console.warn(`[agents] gemini search failed: ${(error as Error).message}`) }
   }
   if (env.GROQ_API_KEY?.trim()) {
-    try { return await groqBrowse(q, env) } catch { /* fall through */ }
+    try { return await groqBrowse(q, env) } catch (error) { console.warn(`[agents] groq browse failed: ${(error as Error).message}`) }
   }
   throw new Error("WEB_UNAVAILABLE")
 }

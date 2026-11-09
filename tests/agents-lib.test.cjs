@@ -126,13 +126,13 @@ test('the agent brain falls through to the next provider on a rate limit', async
     return { ok: true, status: 200, json: async () => ({ choices: [{ message: { role: 'assistant', content: 'from gemini' } }] }) }
   } } })
   const env = { GROQ_API_KEY: 'synthetic-groq', GEMINI_API_KEY: 'synthetic-gemini' }
-  assert.deepEqual([...llm.agentProviders(env).map(p => p.name)], ['groq', 'gemini'])
+  assert.deepEqual([...llm.agentProviders(env).map(p => p.name)], ['groq', 'gemini:gemini-3.5-flash-lite', 'gemini:gemini-3.5-flash'])
   const result = await llm.chat({ messages: [{ role: 'assistant', content: null, reasoning: 'hidden', tool_calls: [{ id: 't', type: 'function', function: { name: 'x', arguments: '{}' } }] }] }, env)
-  assert.equal(result.provider, 'gemini')
+  assert.equal(result.provider, 'gemini:gemini-3.5-flash-lite')
   assert.equal(result.message.content, 'from gemini')
   assert.equal(calls.length, 2)
   assert.equal('reasoning' in calls[1].body.messages[0], false)
-  assert.equal(calls[1].body.model, 'gemini-2.5-flash')
+  assert.equal(calls[1].body.model, 'gemini-3.5-flash-lite')
   const custom = llm.agentProviders({ ...env, AGENT_LLM_URL: 'http://localhost:11434/v1/chat/completions', AGENT_LLM_KEY: 'k', AGENT_LLM_MODEL: 'open-model' })
   assert.equal(custom[0].name, 'custom')
   await assert.rejects(() => llm.chat({ messages: [] }, {}), /AI_NOT_CONFIGURED/)
@@ -151,4 +151,13 @@ test('agent replies are kept plain text', () => {
 
 test('condition names keep their numbers when matched against labels', () => {
   assert.deepEqual([...research.searchTerms(['Type 2 diabetes', 'Metformin 500 mg'])], ['type 2 diabetes', 'metformin'])
+})
+
+test('Gemini gets thought signatures back; other providers never see them', () => {
+  const llm = loadTs('lib/agents/llm.ts')
+  const signed = { role: 'assistant', content: null, tool_calls: [{ id: 'a', type: 'function', function: { name: 'x', arguments: '{}' }, extra_content: { google: { thought_signature: 'sig-1' } } }] }
+  const unsigned = { role: 'assistant', content: null, tool_calls: [{ id: 'b', type: 'function', function: { name: 'x', arguments: '{}' } }] }
+  assert.equal(llm.cleanMessage(signed, true).tool_calls[0].extra_content.google.thought_signature, 'sig-1')
+  assert.equal(llm.cleanMessage(unsigned, true).tool_calls[0].extra_content.google.thought_signature, 'skip_thought_signature_validator')
+  assert.equal('extra_content' in llm.cleanMessage(signed, false).tool_calls[0], false)
 })

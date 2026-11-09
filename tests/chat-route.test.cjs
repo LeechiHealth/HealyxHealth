@@ -15,7 +15,8 @@ function loadRoute({ authenticated = true, configured = true } = {}) {
   const scope = { exports: {}, Buffer, console, process: { env: configured ? { GROQ_API_KEY: 'synthetic-test-key' } : {} }, require(name) {
     if (name === 'next/server') return { NextResponse: { json } }
     if (name === '@/lib/serverAuth') return { authenticateRequest: async () => authenticated ? { user: { id: 'verified-account' }, supabase: database } : { response: json({ error: 'Sign in' }, { status: 401 }) } }
-    if (name === '@/lib/groq/client') return { GROQ_MODEL: 'synthetic-model', GROQ_VISION_MODEL: 'synthetic-vision', stripReasoning: text => text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim(), groq: { chat: { completions: { create: async input => { calls.push(input); return { choices: [{ message: { content: 'Synthetic answer' } }] } } } } } }
+    if (name === '@/lib/groq/client') return { GROQ_VISION_MODEL: 'synthetic-vision', stripReasoning: text => text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim() }
+    if (name === '@/lib/agents/llm') return { agentProviders: () => (configured ? [{ name: 'synthetic' }] : []), chat: async (input, env, options) => { calls.push({ ...input, model: 'synthetic-model', options }); return { message: { role: 'assistant', content: 'Synthetic answer' }, provider: 'synthetic' } } }
     return require(name)
   } }
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../app/api/chat/route.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, scope)
@@ -41,4 +42,12 @@ test('chat binds record queries to verified account and ignores client health co
   const modelInput = calls.find(c => c.model)
   assert.match(modelInput.messages[0].content, /Synthetic lab/)
   assert.doesNotMatch(JSON.stringify(modelInput), /SPOOFED PRIVATE RECORD|other-account/)
+})
+test('chat images go to the vision model first, through the provider fallback chain', async () => {
+  const { post, calls } = loadRoute()
+  const result = await post(request({ message: 'What is this?', fileData: { base64: 'aGVsbG8=', mimeType: 'image/png', name: 'x.png' } }))
+  assert.equal(result.status, 200)
+  const modelInput = calls.find(c => c.model)
+  assert.equal(modelInput.options.groqModel, 'synthetic-vision')
+  assert.equal(modelInput.messages.at(-1).content[0].type, 'image_url')
 })
