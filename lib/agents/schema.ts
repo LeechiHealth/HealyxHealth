@@ -87,8 +87,6 @@ export function validActions(agent: AgentId, candidates: unknown, max = 4): Agen
   return actions
 }
 
-export const ModelReply = z.object({ reply: z.string().max(3000), actions: z.unknown().optional() })
-
 export const RunRequest = z.object({
   agent: z.enum(AGENT_IDS),
   message: z.string().trim().min(1).max(2000),
@@ -98,17 +96,3 @@ export const RunRequest = z.object({
   tzOffsetMinutes: z.number().int().min(-840).max(840).optional().default(0),
 })
 export type RunRequest = z.infer<typeof RunRequest>
-
-export const ResearchPlan = z.object({
-  topic: text(80),
-  pubmed_query: optionalText(300),
-  drug_names: list(text(60), 3),
-  trial_query: optionalText(200),
-})
-
-export const ResearchSummary = z.object({
-  reply: text(1200),
-  points: list(z.object({ text: text(500), cites: z.array(z.number().int()).max(6) }), 6),
-  ask_clinician: list(text(240), 3),
-  limits: optionalText(400),
-})

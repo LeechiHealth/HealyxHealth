@@ -30,7 +30,7 @@ export const URGENT_REPLIES: Record<UrgentKind, string> = {
 // Agents prepare drafts. They never send, book, call or buy, so a reply that
 // says otherwise is replaced rather than shown.
 const OVERCLAIMS = [
-  /\b(i|i've|i have|we|we've|we have|healyx has)\s+(already\s+|just\s+|now\s+|successfully\s+)?(booked|scheduled|sent|submitted|ordered|purchased|bought|called|faxed|emailed|messaged|contacted|notified|placed|requested|confirmed|refilled)\b/i,
+  /\b(i|i've|i have|we|we've|we have|healyx has)\s+(already\s+|just\s+|now\s+|successfully\s+)?(booked|scheduled|sent|submitted|ordered|purchased|bought|called|faxed|emailed|messaged|contacted|notified|placed|requested|refilled)\b/i,
   /\b(appointment|visit|refill|order|request|prescription|message)\s+(has been|have been|is now)\s+(booked|scheduled|sent|submitted|placed|confirmed|ordered|on (its|the) way)\b/i,
   /\b(i('ll| will)|we('ll| will))\s+(call|email|message|contact|book|order|send)\b/i,
 ]
@@ -42,7 +42,8 @@ export function overclaims(text: string): boolean {
 }
 
 export function honestReply(text: string): string {
-  const cleaned = text.replace(/\*\*|__|^#+\s*/gm, "").trim()
+  // Plain text only: bullets become "•", bold and heading marks are dropped.
+  const cleaned = text.replace(/^[ \t]*[*-][ \t]+/gm, "• ").replace(/\*\*|__|^#+\s*/gm, "").replace(/\n{3,}/g, "\n\n").trim()
   if (!cleaned || overclaims(cleaned)) return HONEST_FALLBACK_REPLY
   return cleaned
 }

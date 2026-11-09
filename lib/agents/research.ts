@@ -179,7 +179,7 @@ export function searchTerms(names: (string | null | undefined)[]): string[] {
   const terms = new Set<string>()
   for (const raw of names) {
     if (!raw) continue
-    const base = raw.toLowerCase().replace(/\(.*?\)/g, " ").replace(/\b\d+(\.\d+)?\s*(mg|mcg|g|ml|iu|units?|%)\b/g, " ").replace(/\b(er|xr|sr|dr|xl|hcl|tablets?|capsules?|oral)\b/g, " ").replace(/[^a-z \-]/g, " ").replace(/\s+/g, " ").trim()
+    const base = raw.toLowerCase().replace(/\(.*?\)/g, " ").replace(/\b\d+(\.\d+)?\s*(mg|mcg|g|ml|iu|units?|%)\b/g, " ").replace(/\b(er|xr|sr|dr|xl|hcl|tablets?|capsules?|oral)\b/g, " ").replace(/[^a-z0-9 \-]/g, " ").replace(/\s+/g, " ").trim()
     if (base.length >= 4) terms.add(base)
   }
   return [...terms]
