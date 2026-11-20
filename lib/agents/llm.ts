@@ -27,10 +27,13 @@ type Env = Record<string, string | undefined>
 export interface ChatOptions {
   /** Groq model for this call only, for example the vision model for an image. */
   groqModel?: string
+  /** Use only the Gemini models (for example for photos, since the Groq account has no vision model). */
+  onlyGemini?: boolean
 }
 
 export function agentProviders(env: Env = process.env, options: ChatOptions = {}): Provider[] {
   const list: Provider[] = []
+  if (options.onlyGemini) return geminiProviders(env)
   // An explicit OpenAI-compatible endpoint (for example an open-source model host) goes first.
   if (env.AGENT_LLM_URL?.trim() && env.AGENT_LLM_KEY?.trim() && env.AGENT_LLM_MODEL?.trim()) {
     list.push({ name: "custom", url: env.AGENT_LLM_URL.trim(), key: env.AGENT_LLM_KEY.trim(), model: env.AGENT_LLM_MODEL.trim() })
@@ -38,6 +41,12 @@ export function agentProviders(env: Env = process.env, options: ChatOptions = {}
   if (env.GROQ_API_KEY?.trim()) {
     list.push({ name: "groq", url: "https://api.groq.com/openai/v1/chat/completions", key: env.GROQ_API_KEY.trim(), model: options.groqModel || env.AGENT_MODEL?.trim() || env.GROQ_MODEL?.trim() || "openai/gpt-oss-120b" })
   }
+  list.push(...geminiProviders(env))
+  return list
+}
+
+function geminiProviders(env: Env): Provider[] {
+  const list: Provider[] = []
   if (env.GEMINI_API_KEY?.trim()) {
     // Fast model first, then the stronger one. gemini-2.5-flash is overloaded and 2.5-flash-lite is retired for new keys.
     const models = (env.GEMINI_AGENT_MODELS || env.GEMINI_AGENT_MODEL || "gemini-3.5-flash-lite,gemini-3.5-flash").split(",").map(m => m.trim()).filter(Boolean)
