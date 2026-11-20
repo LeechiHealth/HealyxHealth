@@ -34,6 +34,7 @@ struct NutritionDetailView: View {
                     DetailEmptyState(symbol: "fork.knife", title: "No meals logged today",
                                      detail: "Log meals in an app that saves to Apple Health (like MyFitnessPal or Cronometer) and your breakdown shows here.")
                 }
+                ManualLogSection(kinds: [.meal, .water])
                 DetailFootnote()
             }
             .padding(20)
@@ -42,6 +43,9 @@ struct NutritionDetailView: View {
         }
         .healyxBackground()
         .navigationTitle("Nutrition")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { LogMenu(kinds: [.meal, .water]) }
+        }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

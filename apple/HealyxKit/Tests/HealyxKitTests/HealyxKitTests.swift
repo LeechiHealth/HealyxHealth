@@ -371,12 +371,13 @@ final class WellnessTests: XCTestCase {
 
 final class BiologicalAgeTests: XCTestCase {
     // Worked example from a published PhenoAge walkthrough (US units), computed with
-    // the corrected 0.090165 constant: about 53.2 years at a calendar age of 64.12.
+    // the corrected 0.090165 constant: about 53.15 years at a calendar age of 64.12 with the full-precision
+    // coefficients from the BioAge package.
     func testPhenoAgeWorkedExample() {
         let age = BiologicalAge.phenoAge(albuminGL: 41, creatinineUmolL: 0.73 * 88.42, glucoseMmolL: 94 / 18.016,
                                          crpMgDL: 0.019, lymphocytePct: 27.78, mcvFL: 88, rdwPct: 13.6,
                                          alpUL: 48, wbcK: 3.9, age: 64.12)
-        XCTAssertEqual(age ?? 0, 53.21, accuracy: 0.05)
+        XCTAssertEqual(age ?? 0, 53.15, accuracy: 0.05)
     }
 
     func testEvaluateFromLabsInUSUnits() {
@@ -395,7 +396,8 @@ final class BiologicalAgeTests: XCTestCase {
         let result = BiologicalAge.evaluate(biomarkers: labs, dateOfBirth: "1962-04-10")
         XCTAssertTrue(result.missing.isEmpty)
         XCTAssertEqual(result.chronologicalAge ?? 0, 64.12, accuracy: 0.02)
-        XCTAssertEqual(result.age ?? 0, 53.2, accuracy: 0.1)
+        XCTAssertEqual(result.age ?? 0, 53.15, accuracy: 0.1)
+        XCTAssertEqual(result.method, .phenoAge)
 
         let partial = BiologicalAge.evaluate(biomarkers: Array(labs.prefix(3)), dateOfBirth: nil)
         XCTAssertNil(partial.age)
@@ -426,5 +428,107 @@ final class BiologicalAgeTests: XCTestCase {
         let decoded = try HealyxJSON.decoder.decode(WellnessDailyRow.self, from: data).snapshot
         XCTAssertEqual(decoded.sleepSegments.first?.stage, .deep)
         XCTAssertEqual(decoded.stressHourly.first?.value, 42)
+    }
+}
+
+// MARK: - Manual logs
+
+final class ManualWellnessTests: XCTestCase {
+    let cal: Calendar = { var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(identifier: "America/New_York")!; return c }()
+    func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+    }
+
+    func testManualSleepBuildsSegments() {
+        let log = ManualSleepLog(bedtime: date(18, 23), wakeTime: date(19, 7), minutesToFallAsleep: 20,
+                                 wakeUps: 2, minutesAwake: 20, deepMinutes: 60, remMinutes: 100, coreMinutes: 240)
+        XCTAssertEqual(log.asleepMinutes, 440)
+        let entry = ManualLogEntry(id: "a", kind: .sleep, loggedAt: log.bedtime, value: 440,
+                                   value2: log.wakeTime.timeIntervalSince1970, details: log.details)
+        let parsed = ManualSleepLog(entry: entry)!
+        XCTAssertEqual(parsed.wakeUps, 2)
+        let input = ManualWellness.merge(WellnessInput(now: date(19, 21), calendar: cal), entries: [entry])
+        let sleep = WellnessScoring.compute(input).sleep!
+        XCTAssertEqual(sleep.asleepMinutes, 440)
+        XCTAssertEqual(sleep.minutesToFallAsleep, 20)
+        XCTAssertEqual(sleep.awakeMinutes, 20)
+        XCTAssertEqual(sleep.deepMinutes, 60)
+        XCTAssertEqual(sleep.remMinutes, 100)
+        XCTAssertEqual(sleep.coreMinutes, 280) // 240 given plus 40 unassigned
+    }
+
+    func testManualSleepIgnoredWhenHealthHasSleep() {
+        let log = ManualSleepLog(bedtime: date(18, 23), wakeTime: date(19, 7))
+        let entry = ManualLogEntry(id: "a", kind: .sleep, loggedAt: log.bedtime, details: log.details)
+        let health = [SleepSegment(start: date(18, 23), end: date(19, 5), stage: .unspecified)]
+        let input = ManualWellness.merge(WellnessInput(now: date(19, 21), calendar: cal, sleep: health), entries: [entry])
+        XCTAssertEqual(WellnessScoring.compute(input).sleep?.asleepMinutes, 360)
+    }
+
+    func testStressRatingBlends() {
+        let entry = ManualLogEntry(id: "s", kind: .stress, loggedAt: date(19, 12), value: 10)
+        let alone = ManualWellness.fill(nil, entries: [entry], now: date(19, 21), calendar: cal)!
+        XCTAssertEqual(alone.stress?.score, 100)
+        XCTAssertEqual(alone.stress?.manualRating, 10)
+        var base = WellnessSnapshot(sleep: nil, recovery: nil, stress: nil, nutrition: nil, computedAt: date(19, 21))
+        base.stress = alone.stress
+        base.stress?.score = 50
+        let blended = ManualWellness.applyStress(base, entries: [entry], now: date(19, 21), calendar: cal)
+        XCTAssertEqual(blended.stress?.score, 70) // 0.6 x 50 + 0.4 x 100
+    }
+
+    func testMealsAddToNutrition() {
+        let meal = ManualLogEntry(id: "m", kind: .meal, loggedAt: date(19, 12), value: 600,
+                                  details: ["protein": .number(30), "carbs": .number(75), "fat": .number(20)])
+        let input = ManualWellness.merge(WellnessInput(now: date(19, 21), calendar: cal), entries: [meal])
+        XCTAssertEqual(input.nutrition.energyKcal, 600)
+        XCTAssertEqual(input.nutrition.proteinG, 30)
+    }
+}
+
+// MARK: - Biological age (KDM fallback)
+
+final class KDMTests: XCTestCase {
+    // Worked example (man, 50): seven markers, no CBC. Computed with the same
+    // NHANES III parameters in Python: about 48.98, typical spread 5.5 years.
+    func testKDMWorkedExample() {
+        let values: [String: Double] = [
+            "albumin": 4.3, "creat": 1.0, "hba1c": 5.6, "lncrp": log(1 + 0.2),
+            "bun": 15, "totchol": 210, "sbp": 128,
+        ]
+        let result = KDM.age(values: values, sex: .male, chronologicalAge: 50)
+        XCTAssertEqual(result?.age ?? 0, 48.98, accuracy: 0.05)
+        XCTAssertEqual(result?.spread ?? 0, 5.52, accuracy: 0.05)
+    }
+
+    func testKDMNeedsFourMarkers() {
+        XCTAssertNil(KDM.age(values: ["albumin": 4.3, "creat": 1.0, "sbp": 128], sex: .female, chronologicalAge: 40))
+    }
+
+    func testEvaluateFallsBackToKDM() {
+        let labs = [
+            Biomarker(id: "1", name: "Albumin", value: 4.3, unit: "g/dL", testDate: "2026-05-23"),
+            Biomarker(id: "2", name: "Creatinine", value: 1.0, unit: "mg/dL", testDate: "2026-05-23"),
+            Biomarker(id: "3", name: "Hemoglobin A1c", value: 5.6, unit: "%", testDate: "2026-05-23"),
+            Biomarker(id: "4", name: "hs-CRP", value: 2.0, unit: "mg/L", testDate: "2026-05-23"),
+            Biomarker(id: "5", name: "BUN", value: 15, unit: "mg/dL", testDate: "2026-05-23"),
+            Biomarker(id: "6", name: "Total Cholesterol", value: 210, unit: "mg/dL", testDate: "2026-05-23"),
+        ]
+        let systolic = SystolicReading(value: 128, date: "2026-05-23")
+        let result = BiologicalAge.evaluate(biomarkers: labs, dateOfBirth: "1976-05-23", sex: .male, systolic: systolic)
+        XCTAssertEqual(result.method, .kdm)
+        XCTAssertEqual(result.markers.count, 7)
+        XCTAssertEqual(result.age ?? 0, 48.98, accuracy: 0.1)
+        XCTAssertEqual(result.confidence, .moderate)
+
+        let noSex = BiologicalAge.evaluate(biomarkers: labs, dateOfBirth: "1976-05-23", systolic: systolic)
+        XCTAssertNil(noSex.age)
+        XCTAssertTrue(noSex.needsSex)
+    }
+
+    func testSexFromProfile() {
+        XCTAssertEqual(BiologicalSex(profileValue: "Male"), .male)
+        XCTAssertEqual(BiologicalSex(profileValue: "f"), .female)
+        XCTAssertNil(BiologicalSex(profileValue: "prefer not to say"))
     }
 }

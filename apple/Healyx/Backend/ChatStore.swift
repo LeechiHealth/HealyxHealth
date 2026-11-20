@@ -18,6 +18,9 @@ final class ChatStore {
         let text: String
         var images: [Data] = []
         var isError = false
+        /// Lab results the guide read from a photo, ready to save to Health Records.
+        var labs: [HealyxAPI.ExtractedLab] = []
+        var labsSaved = false
     }
 
     private(set) var messages: [Message] = []
@@ -31,7 +34,7 @@ final class ChatStore {
 
     /// Sends a message with up to three photos. Returns the reply text, or nil on failure.
     @discardableResult
-    func send(_ text: String, images: [Data] = []) async -> String? {
+    func send(_ text: String, images: [Data] = [], voice: Bool = false) async -> String? {
         let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty || !images.isEmpty, !isSending else { return nil }
         let question = content.isEmpty ? "What can you tell me about this photo?" : content
@@ -42,9 +45,9 @@ final class ChatStore {
         defer { isSending = false }
         do {
             let payload = encoded.map { HealyxAPI.ChatImage(base64: $0.base64EncodedString()) }
-            let reply = try await backend.api.chat(message: question, history: history, images: payload)
-            messages.append(Message(role: .assistant, text: reply))
-            return reply
+            let result = try await backend.api.chatResult(message: question, history: history, images: payload, voice: voice)
+            messages.append(Message(role: .assistant, text: result.reply, labs: result.extractedLabs))
+            return result.reply
         } catch {
             messages.append(Message(role: .assistant, text: error.localizedDescription, isError: true))
             return nil
@@ -53,6 +56,26 @@ final class ChatStore {
 
     func reset() {
         messages = []
+    }
+
+    /// Saves the numeric lab results read from a photo to Health Records.
+    /// Returns how many were saved.
+    @discardableResult
+    func saveLabs(for messageID: UUID, records: RecordsStore) async throws -> Int {
+        guard let index = messages.firstIndex(where: { $0.id == messageID }), !messages[index].labsSaved else { return 0 }
+        guard let userID = records.currentUserID else { throw HealyxAPIError.notSignedIn }
+        let today = HealyxDate.localDateString(Date())
+        var saved = 0
+        for lab in messages[index].labs {
+            guard let value = lab.value else { continue }
+            let input = BiomarkerInput(userID: userID, name: lab.name, value: value, unit: lab.unit ?? "",
+                                       testDate: lab.date ?? today, referenceRangeText: lab.range)
+            _ = try await backend.supabase.from("biomarkers").insert(input).execute()
+            saved += 1
+        }
+        messages[index].labsSaved = true
+        await records.reload()
+        return saved
     }
 
     /// Re-encodes a photo as JPEG, shrinking it until it's about 1 MB or less.

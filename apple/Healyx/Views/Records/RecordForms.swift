@@ -84,6 +84,10 @@ struct AddVitalForm: View {
     @State private var saving = false
     @State private var errorText: String?
 
+    init(initialKind: VitalKind = .bloodPressure) {
+        _kind = State(initialValue: initialKind)
+    }
+
     private var parsed: (value: Double, second: Double?)? {
         guard let v = number(value), kind.range.contains(v) else { return nil }
         if kind == .bloodPressure {

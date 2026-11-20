@@ -110,6 +110,7 @@ struct HomeView: View {
                 .tracking(-0.6)
                 .foregroundStyle(Theme.foreground)
             Spacer()
+            LogMenu()
             AccountMenu()
         }
         .padding(.top, 6)

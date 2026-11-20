@@ -26,14 +26,15 @@ struct SleepDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Image(systemName: "moon.stars.fill").font(.title2).foregroundStyle(SleepPalette.rem)
                         Text("No sleep from last night").font(.headline).foregroundStyle(text)
-                        Text("Wear your Apple Watch to bed (or use Sleep in the Health app) and your stages show here in the morning.")
+                        Text("Wear your Apple Watch to bed (or use Sleep in the Health app), or log last night yourself below.")
                             .font(.subheadline).foregroundStyle(subtle)
                     }
                     .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(SleepPalette.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
-                Text("Healyx estimates from Apple Health, not medical measurements.")
+                ManualLogSection(kinds: [.sleep], title: "Logged nights", dark: true)
+                Text("Healyx estimates from Apple Health and your logs, not medical measurements.")
                     .font(.caption)
                     .foregroundStyle(subtle)
             }
@@ -47,6 +48,9 @@ struct SleepDetailView: View {
         }
         .environment(\.colorScheme, .dark)
         .navigationTitle("Sleep")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { LogMenu(kinds: [.sleep], tint: .white) }
+        }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

@@ -19,6 +19,7 @@ struct RecoveryDetailView: View {
                     DetailEmptyState(symbol: "leaf.fill", title: "No recovery score yet",
                                      detail: "Recovery compares your overnight HRV and resting heart rate with your usual. Wear an Apple Watch to sleep for a few nights to build your baseline.")
                 }
+                ManualLogSection(kinds: [.restingHR, .hrv, .sleep])
                 DetailFootnote()
             }
             .padding(20)
@@ -27,6 +28,9 @@ struct RecoveryDetailView: View {
         }
         .healyxBackground()
         .navigationTitle("Recovery")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) { LogMenu(kinds: [.restingHR, .hrv, .sleep]) }
+        }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

@@ -94,7 +94,7 @@ struct DetailEmptyState: View {
 
 /// The honest note under every score.
 struct DetailFootnote: View {
-    var text = "Healyx estimates from Apple Health, not medical measurements."
+    var text = "Healyx estimates from Apple Health and your logs, not medical measurements."
 
     var body: some View {
         Text(text)

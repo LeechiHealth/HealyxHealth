@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Healyx's own orb character: a glossy blue orb with a face drawn from the
-/// dotted-heart logo. Round eyes that blink, and three small dots for a mouth
+/// dotted-heart logo. Round eyes that blink
 /// that pulse while it thinks or talks. The glow breathes while it listens.
 struct HealyxBuddy: View {
     enum Mood: Equatable { case idle, listening, thinking, speaking }
@@ -51,21 +51,13 @@ struct HealyxBuddy: View {
         let eye = size * 0.12
         let blink = isBlinking(time) ? 0.12 : 1.0
         let look: CGFloat = mood == .thinking ? -size * 0.04 : 0
-        return VStack(spacing: size * 0.08) {
-            HStack(spacing: size * 0.2) {
-                eyeView(diameter: eye).scaleEffect(x: 1, y: blink)
-                eyeView(diameter: eye).scaleEffect(x: 1, y: blink)
-            }
-            .offset(y: look)
-            HStack(spacing: size * 0.045) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .fill(ink.opacity(0.55))
-                        .frame(width: size * 0.045, height: size * 0.045)
-                        .scaleEffect(mouthScale(time, index: index))
-                }
-            }
+        let pulse = mouthScale(time, index: 0)
+        return HStack(spacing: size * 0.2) {
+            eyeView(diameter: eye).scaleEffect(x: 1, y: blink)
+            eyeView(diameter: eye).scaleEffect(x: 1, y: blink)
         }
+        .scaleEffect(pulse)
+        .offset(y: look)
         .offset(y: size * 0.04)
     }
 
@@ -93,9 +85,9 @@ struct HealyxBuddy: View {
         guard moving else { return 1 }
         switch mood {
         case .speaking:
-            return 1 + 0.6 * CGFloat(abs(sin(time * 7 + Double(index) * 0.9)))
+            return 1 + 0.06 * CGFloat(abs(sin(time * 5)))
         case .thinking:
-            return 1 + 0.45 * CGFloat(max(0, sin(time * 4 - Double(index) * 0.8)))
+            return 1
         case .idle, .listening:
             return 1
         }

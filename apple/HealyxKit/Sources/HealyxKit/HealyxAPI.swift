@@ -126,7 +126,45 @@ public struct HealyxAPI: Sendable {
         }
     }
 
-    public static func chatBody(message: String, history: [ChatTurn], images: [ChatImage] = []) -> [String: JSONValue] {
+    /// A lab result the guide read from a photo of a lab report.
+    public struct ExtractedLab: Decodable, Hashable, Sendable, Identifiable {
+        public var id: String { name + "|" + (date ?? "") }
+        public var name: String
+        public var value: Double?
+        public var valueText: String?
+        public var unit: String?
+        public var range: String?
+        public var date: String?
+
+        enum CodingKeys: String, CodingKey { case name, value, unit, range, date }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            name = c.lossyString(.name) ?? ""
+            value = c.lossyDouble(.value)
+            valueText = c.lossyString(.value)
+            unit = c.lossyString(.unit)
+            range = c.lossyString(.range)
+            date = c.lossyString(.date)
+        }
+    }
+
+    /// A chat answer, plus any lab results read from a photo.
+    public struct ChatResult: Decodable, Sendable {
+        public var reply: String
+        public var extractedLabs: [ExtractedLab]
+
+        enum CodingKeys: String, CodingKey { case reply, extractedLabs }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            reply = try c.decode(String.self, forKey: .reply)
+            let labs: [ExtractedLab]? = try? c.decodeIfPresent([ExtractedLab].self, forKey: .extractedLabs)
+            extractedLabs = (labs ?? []).filter { !$0.name.isEmpty }
+        }
+    }
+
+    public static func chatBody(message: String, history: [ChatTurn], images: [ChatImage] = [], voice: Bool = false) -> [String: JSONValue] {
         // The route accepts at most 20 turns of up to 4,000 characters each.
         let turns = history.suffix(20).map { turn -> JSONValue in
             .object(["role": .string(turn.role.rawValue), "content": .string(String(turn.content.prefix(4000)))])
@@ -137,6 +175,7 @@ public struct HealyxAPI: Sendable {
                 .object(["mimeType": .string(image.mimeType), "data": .string(image.base64)])
             })
         }
+        if voice { body["voice"] = .bool(true) }
         return body
     }
 
@@ -196,6 +235,31 @@ public struct HealyxAPI: Sendable {
     /// The health guide chat (`POST /api/chat`). The server adds the person's saved records.
     public func chat(message: String, history: [ChatTurn], images: [ChatImage] = []) async throws -> String {
         try await post("api/chat", body: Self.chatBody(message: message, history: history, images: images), as: ChatReply.self).reply
+    }
+
+    /// The chat with everything the server returns (reply and any lab results read from photos).
+    /// `voice` asks for a short spoken-style answer.
+    public func chatResult(message: String, history: [ChatTurn], images: [ChatImage] = [], voice: Bool = false) async throws -> ChatResult {
+        try await post("api/chat", body: Self.chatBody(message: message, history: history, images: images, voice: voice), as: ChatResult.self)
+    }
+
+    /// Natural speech for a short piece of text (`POST /api/tts`). Returns WAV audio.
+    public func tts(text: String, voice: String? = nil) async throws -> Data {
+        let accessToken: String
+        do { accessToken = try await token() } catch { throw HealyxAPIError.notSignedIn }
+        var body: [String: JSONValue] = ["text": .string(String(text.prefix(1200)))]
+        if let voice { body["voice"] = .string(voice) }
+        var request = try makeRequest(path: "api/tts", body: body, accessToken: accessToken)
+        request.timeoutInterval = 30
+        let (data, response) = try await session.data(for: request)
+        let http = response as? HTTPURLResponse
+        let status = http?.statusCode ?? 0
+        let contentType = http?.value(forHTTPHeaderField: "Content-Type") ?? ""
+        if (200..<300).contains(status) && contentType.contains("audio") && !data.isEmpty { return data }
+        if (200..<300).contains(status) { throw HealyxAPIError.invalidResponse(status: status) }
+        struct Empty: Decodable {}
+        _ = try Self.decode(Empty.self, data: data, status: status)
+        throw HealyxAPIError.invalidResponse(status: status)
     }
 
     /// Runs a health agent (`POST /api/agents/run`). The server streams each step as it

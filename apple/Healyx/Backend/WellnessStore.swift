@@ -17,11 +17,11 @@ final class WellnessStore {
 
     private static let connectedKey = "health.connected"
     private static let authVersionKey = "health.authVersion"
-    private static let authVersion = 2
+    private static let authVersion = 3
 
     private(set) var connected: Bool
 
-    /// PhenoAge from the person's labs (call `updateBiologicalAge(records:)` after records load).
+    /// Biological age from labs (PhenoAge, or KDM with fewer labs). Call `updateBiologicalAge(records:)` after records load.
     private(set) var biologicalAge: BiologicalAgeResult?
 
     init() {
@@ -42,19 +42,38 @@ final class WellnessStore {
 
     /// True when there is something to load: Health is connected here, or this
     /// device shows the scores the iPhone synced.
-    var shouldRefresh: Bool { connected || !isAvailable }
+    /// Always true now: manual logs feed the scores even without Apple Health.
+    var shouldRefresh: Bool { true }
 
     /// Recomputes biological age from the saved labs and date of birth.
     func updateBiologicalAge(records: RecordsStore) {
-        updateBiologicalAge(biomarkers: records.biomarkers, dateOfBirth: records.profile?.dateOfBirth)
+        let vital = records.vitals.first { $0.systolicBP != nil }
+        let fromVitals = vital.flatMap { v in v.systolicBP.map { SystolicReading(value: $0, date: v.recordedAt) } }
+        bioInputs = (records.biomarkers, records.profile?.dateOfBirth, BiologicalSex(profileValue: records.profile?.gender), fromVitals)
+        recomputeBiologicalAge()
     }
 
     func updateBiologicalAge(biomarkers: [Biomarker], dateOfBirth: String?) {
-        guard !biomarkers.isEmpty || dateOfBirth != nil else {
+        bioInputs = (biomarkers, dateOfBirth, bioInputs?.sex, bioInputs?.systolic)
+        recomputeBiologicalAge()
+    }
+
+    /// Latest labs, birth date, sex and vitals systolic, kept so an Apple Health
+    /// blood pressure reading can update the estimate later.
+    @ObservationIgnored private var bioInputs: (biomarkers: [Biomarker], dateOfBirth: String?, sex: BiologicalSex?, systolic: SystolicReading?)?
+    /// Newest systolic blood pressure from Apple Health (last year).
+    @ObservationIgnored private var healthSystolic: SystolicReading?
+
+    private func recomputeBiologicalAge() {
+        guard let inputs = bioInputs, !inputs.biomarkers.isEmpty || inputs.dateOfBirth != nil else {
             biologicalAge = nil
             return
         }
-        biologicalAge = BiologicalAge.evaluate(biomarkers: biomarkers, dateOfBirth: dateOfBirth)
+        // Use whichever systolic reading is newer: logged vitals or Apple Health.
+        let readings = [inputs.systolic, healthSystolic].compactMap { $0 }
+        let systolic = readings.max { ($0.date ?? "") < ($1.date ?? "") }
+        biologicalAge = BiologicalAge.evaluate(biomarkers: inputs.biomarkers, dateOfBirth: inputs.dateOfBirth,
+                                               sex: inputs.sex, systolic: systolic)
     }
 
     func reset() {
@@ -63,6 +82,15 @@ final class WellnessStore {
         syncedDay = nil
         errorMessage = nil
         isLoading = false
+        ManualLogStore.shared.reset()
+    }
+
+    /// Scores from manual logs alone (an iPhone without Apple Health connected).
+    private func computeManualOnly() async {
+        let entries = ManualLogStore.shared.entries
+        guard !entries.isEmpty else { return }
+        snapshot = ManualWellness.fill(nil, entries: entries, now: Date(), calendar: .current)
+        if let snapshot { await upload(snapshot) }
     }
 
     private var backend: HealyxBackend { .shared }
@@ -97,11 +125,12 @@ final class WellnessStore {
                 .order("day", ascending: false).limit(1)
                 .execute().data
             let rows = try HealyxJSON.decoder.decode([WellnessDailyRow].self, from: data)
-            snapshot = rows.first?.snapshot
+            snapshot = ManualWellness.fill(rows.first?.snapshot, entries: ManualLogStore.shared.entries,
+                                           now: Date(), calendar: .current)
             syncedDay = rows.first?.day
             errorMessage = nil
         } catch {
-            snapshot = nil
+            snapshot = ManualWellness.fill(nil, entries: ManualLogStore.shared.entries, now: Date(), calendar: .current)
             syncedDay = nil
         }
     }
@@ -122,6 +151,7 @@ final class WellnessStore {
             HKQuantityType(.dietaryFatTotal),
             HKQuantityType(.dietaryFiber),
             HKQuantityType(.dietaryWater),
+            HKQuantityType(.bloodPressureSystolic),
             HKQuantityType(.activeEnergyBurned),
             HKQuantityType(.basalEnergyBurned),
         ]
@@ -151,12 +181,17 @@ final class WellnessStore {
 
     /// Reads the latest Health data and recomputes the scores.
     func refresh() async {
+        await ManualLogStore.shared.loadIfNeeded()
         guard isAvailable else {
             await loadSynced()
             return
         }
         #if os(iOS) && canImport(HealthKit)
-        guard connected, !isLoading else { return }
+        guard connected else {
+            await computeManualOnly()
+            return
+        }
+        guard !isLoading else { return }
         // Ask again once when a new version reads more types (energy burned);
         // Health only shows the sheet for types not decided yet.
         if UserDefaults.standard.integer(forKey: Self.authVersionKey) < Self.authVersion {
@@ -166,8 +201,10 @@ final class WellnessStore {
         isLoading = true
         var computed: WellnessSnapshot?
         do {
-            let input = try await readInput(now: Date())
-            let result = WellnessScoring.compute(input)
+            let manual = ManualLogStore.shared.entries
+            let input = ManualWellness.merge(try await readInput(now: Date()), entries: manual)
+            let result = ManualWellness.applyStress(WellnessScoring.compute(input), entries: manual,
+                                                    now: input.now, calendar: input.calendar)
             snapshot = result
             computed = result
             errorMessage = nil
@@ -175,6 +212,7 @@ final class WellnessStore {
             errorMessage = "Healyx couldn't read Apple Health right now. Pull to refresh and try again."
         }
         isLoading = false
+        await loadHealthSystolic()
         if let computed { await upload(computed) }
         #endif
     }
@@ -206,6 +244,17 @@ final class WellnessStore {
             workouts: try await workouts,
             nutrition: try await nutrition
         )
+    }
+
+    /// Newest systolic reading from the last year, for the biological age estimate.
+    private func loadHealthSystolic() async {
+        let now = Date()
+        let start = Calendar.current.date(byAdding: .day, value: -365, to: now) ?? now
+        guard let samples = try? await quantitySamples(.bloodPressureSystolic, from: start, to: now),
+              let newest = samples.max(by: { $0.startDate < $1.startDate }) else { return }
+        let value = newest.quantity.doubleValue(for: .millimeterOfMercury())
+        healthSystolic = SystolicReading(value: value, date: HealyxDate.isoTimestamp(newest.startDate))
+        recomputeBiologicalAge()
     }
 
     private func predicate(from start: Date, to end: Date) -> NSPredicate {

@@ -169,6 +169,8 @@ public struct StressResult: Sendable, Hashable {
     public var score: Int
     public var averageHR: Double?
     public var restingReference: Double?
+    /// Today's self-reported stress (1 to 10) when one was logged; already blended into `score`.
+    public var manualRating: Int? = nil
     public var level: String {
         score < 34 ? "Low" : score < 67 ? "Moderate" : "High"
     }

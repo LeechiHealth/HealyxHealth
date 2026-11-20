@@ -23,6 +23,12 @@ struct StressDetailView: View {
 
                 if let snapshot = wellness.snapshot, let stress = snapshot.stress {
                     summary(stress, snapshot: snapshot)
+                    if let rating = stress.manualRating {
+                        Label("Includes your rating today: \(rating)/10, \(StressWords.word(rating).lowercased())",
+                              systemImage: "hand.raised.fill")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.muted)
+                    }
                     DetailChips(options: Series.allCases, title: { $0.rawValue }, selection: $series)
                     chart(snapshot)
                         .frame(height: 220)
@@ -43,6 +49,7 @@ struct StressDetailView: View {
                     DetailEmptyState(symbol: "waveform.path.ecg", title: "No stress score yet",
                                      detail: "Stress uses your daytime heart rate and HRV from an Apple Watch. Wear it during the day and check back.")
                 }
+                ManualLogSection(kinds: [.stress, .restingHR, .hrv])
                 DetailFootnote()
             }
             .padding(20)
@@ -64,6 +71,7 @@ struct StressDetailView: View {
             HStack {
                 DetailCloseButton { dismiss() }
                 Spacer()
+                LogMenu(kinds: [.stress, .restingHR, .hrv])
             }
         }
     }

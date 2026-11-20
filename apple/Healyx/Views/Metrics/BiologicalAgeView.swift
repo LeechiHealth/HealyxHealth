@@ -1,8 +1,8 @@
 import SwiftUI
 import HealyxKit
 
-/// Biological age from bloodwork (PhenoAge), the markers it used, and how much to
-/// trust it.
+/// One biological age: PhenoAge when all nine labs are on file, otherwise the
+/// Klemera-Doubal method on whatever markers are available.
 struct BiologicalAgeView: View {
     @Environment(WellnessStore.self) private var wellness
     @Environment(RecordsStore.self) private var records
@@ -12,13 +12,14 @@ struct BiologicalAgeView: View {
             VStack(alignment: .leading, spacing: 18) {
                 if let result = wellness.biologicalAge {
                     hero(result)
-                    markerList(result)
                     confidence(result)
+                    markerList(result)
+                    if !result.missing.isEmpty { upgradeCard(result) }
                 } else {
                     DetailEmptyState(symbol: "heart.text.square.fill", title: "Add bloodwork to see your biological age",
-                                     detail: "Biological age uses nine common lab results (from a CMP, CBC and CRP) plus your date of birth. Add a lab report in Health Records.")
+                                     detail: "Healyx needs a few routine lab results (a metabolic panel, CBC or A1c) and your date of birth. Add a lab report in Health Records.")
                 }
-                Text("An estimate from the PhenoAge formula (Levine et al., 2018), which links routine blood markers to aging research in large population studies. It isn't a diagnosis, and a single result can move with illness, hydration or lab differences.")
+                Text(footnote)
                     .font(.caption)
                     .foregroundStyle(Theme.muted)
             }
@@ -35,6 +36,15 @@ struct BiologicalAgeView: View {
         .refreshable {
             await records.reload()
             wellness.updateBiologicalAge(records: records)
+        }
+    }
+
+    private var footnote: String {
+        switch wellness.biologicalAge?.method {
+        case .kdm?:
+            return "Estimated with the Klemera-Doubal method, trained on about 10,000 US adults in NHANES III (BioAge, Kwon and Belsky 2021). It compares each result with how that marker typically changes with age. With all nine PhenoAge labs, Healyx switches to PhenoAge, which is more strongly linked to long-term health outcomes. It's an estimate from population research and can move with illness, hydration or lab differences."
+        default:
+            return "Estimated with PhenoAge (Levine et al. 2018), built from routine blood markers in about 10,000 US adults and validated in a second national sample. It's an estimate from population research and can move with illness, hydration or lab differences."
         }
     }
 
@@ -59,6 +69,9 @@ struct BiologicalAgeView: View {
                         .font(.footnote)
                         .foregroundStyle(Theme.muted)
                 }
+                if let method = result.method {
+                    Chip(text: method.name, color: Theme.teal)
+                }
             } else {
                 Image(systemName: "heart.text.square")
                     .font(.system(size: 44))
@@ -80,17 +93,21 @@ struct BiologicalAgeView: View {
     }
 
     private func heroMessage(_ result: BiologicalAgeResult) -> String {
-        var needs: [String] = []
-        if !result.missing.isEmpty {
-            needs.append("\(result.missing.count) more lab \(result.missing.count == 1 ? "result" : "results")")
+        if result.needsDateOfBirth { return "Add your date of birth in your Healyx profile to see your biological age." }
+        if result.needsSex { return "Add your sex (male or female) in your Healyx profile. The formula is calibrated separately for men and women." }
+        let found = result.markers.count
+        if found < KDM.minimumMarkers {
+            return "Healyx needs at least \(KDM.minimumMarkers) routine lab results to estimate this. You have \(found) on file."
         }
-        if result.needsDateOfBirth { needs.append("your date of birth in your Healyx profile") }
-        return "To calculate this, Healyx needs " + needs.joined(separator: " and ") + "."
+        return "These results aren't enough for a reliable estimate yet. Adding a CBC or metabolic panel will usually do it."
     }
 
     private func markerList(_ result: BiologicalAgeResult) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Markers used").font(.headline).foregroundStyle(Theme.foreground)
+            Text(result.age == nil ? "Found so far" : "Markers used").font(.headline).foregroundStyle(Theme.foreground)
+            if result.markers.isEmpty {
+                Text("No matching results yet.").font(.subheadline).foregroundStyle(Theme.muted)
+            }
             ForEach(result.markers) { marker in
                 HStack {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.green)
@@ -106,6 +123,16 @@ struct BiologicalAgeView: View {
                     }
                 }
             }
+        }
+        .card()
+    }
+
+    /// The PhenoAge labs still missing, as the path to the most validated estimate.
+    private func upgradeCard(_ result: BiologicalAgeResult) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("For the most accurate estimate").font(.headline).foregroundStyle(Theme.foreground)
+            Text("Add these to use PhenoAge. Most come from a CMP, a CBC with differential and an hs-CRP, often in one blood draw.")
+                .font(.footnote).foregroundStyle(Theme.muted)
             ForEach(result.missing, id: \.self) { label in
                 HStack {
                     Image(systemName: "circle.dashed").foregroundStyle(Theme.muted)
@@ -129,19 +156,23 @@ struct BiologicalAgeView: View {
     }
 
     private func confidenceText(_ result: BiologicalAgeResult) -> (String, Color, String) {
-        guard result.age != nil else {
-            return ("info.circle.fill", Theme.primary, "\(result.markers.count) of 9 markers on file.")
+        guard result.age != nil, let level = result.confidence else {
+            return ("info.circle.fill", Theme.primary, "\(result.markers.count) usable results on file.")
         }
-        let dates = Set(result.markers.compactMap { $0.testDate.map { String($0.prefix(10)) } })
         if let newest = result.labDate.flatMap({ HealyxDate.utcDay(String($0.prefix(10))) }),
            Date().timeIntervalSince(newest) > 365 * 86_400 {
             return ("exclamationmark.triangle.fill", Theme.warning,
-                    "Your newest labs are over a year old, so this may not reflect you today.")
+                    "Confidence: \(level.label). Your newest labs are over a year old, so this may not reflect you today.")
         }
-        if dates.count > 1 {
-            return ("checkmark.seal.fill", Theme.teal,
-                    "All 9 markers are on file, from \(dates.count) different lab dates. Results drawn on the same day give the most reliable estimate.")
+        switch result.method {
+        case .phenoAge?:
+            let dates = Set(result.markers.compactMap { $0.testDate.map { String($0.prefix(10)) } })
+            let draw = dates.count > 1 ? "from \(dates.count) lab dates" : "from one blood draw"
+            return ("checkmark.seal.fill", Theme.green, "Confidence: High. All 9 PhenoAge markers are on file, \(draw).")
+        default:
+            let spread = result.typicalSpread.map { " Estimates from this set of \(result.markers.count) markers typically land within about \(Int($0.rounded())) years of calendar age." } ?? ""
+            return ("checkmark.seal", level == .moderate ? Theme.teal : Theme.warning,
+                    "Confidence: \(level.label).\(spread)")
         }
-        return ("checkmark.seal.fill", Theme.green, "All 9 markers are on file from the same lab draw.")
     }
 }

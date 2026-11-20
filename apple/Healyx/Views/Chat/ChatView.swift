@@ -13,6 +13,9 @@ struct ChatView: View {
     @Environment(ChatStore.self) private var chat
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
+    @Environment(RecordsStore.self) private var records
+    @State private var savingLabs: UUID?
+    @State private var labsNotice: [UUID: String] = [:]
 
     @State private var draft = ""
     @State private var attachments: [Data] = []
@@ -35,9 +38,14 @@ struct ChatView: View {
                             welcome
                         }
                         ForEach(chat.messages) { message in
-                            MessageBubble(role: message.role, text: message.text, isError: message.isError,
-                                          images: message.images, showsBuddy: true)
-                                .id(message.id)
+                            VStack(alignment: .leading, spacing: 8) {
+                                MessageBubble(role: message.role, text: message.text, isError: message.isError,
+                                              images: message.images, showsBuddy: true)
+                                if message.role == .assistant && !message.labs.isEmpty {
+                                    saveLabsCard(message)
+                                }
+                            }
+                            .id(message.id)
                         }
                         if chat.isSending {
                             HStack(alignment: .bottom, spacing: 8) {
@@ -391,10 +399,10 @@ struct ChatView: View {
         draft = ""
         attachments = []
         Task {
-            let reply = await chat.send(text, images: images)
+            let reply = await chat.send(text, images: images, voice: true)
             guard voiceMode else { return }
             if let reply {
-                voice.speak(reply) { listenAgain() }
+                voice.speak(reply, onFinished: { listenAgain() }, onBargeIn: { listenAgain() })
             } else {
                 listenAgain()
             }
@@ -417,6 +425,63 @@ struct ChatView: View {
             await voice.startListening(onUpdate: { text in
                 draft = base.isEmpty ? text : base + " " + text
             })
+        }
+    }
+
+    // MARK: Lab results from photos
+
+    private func saveLabsCard(_ message: ChatStore.Message) -> some View {
+        let numeric = message.labs.filter { $0.value != nil }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "testtube.2").foregroundStyle(Theme.primary)
+                Text("\(message.labs.count) lab result\(message.labs.count == 1 ? "" : "s") found")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.foreground)
+            }
+            ForEach(message.labs.prefix(6)) { lab in
+                HStack {
+                    Text(lab.name).font(.caption).foregroundStyle(Theme.foreground).lineLimit(1)
+                    Spacer()
+                    Text([lab.valueText, lab.unit].compactMap { $0 }.joined(separator: " "))
+                        .font(.caption.monospacedDigit()).foregroundStyle(Theme.muted)
+                }
+            }
+            if message.labs.count > 6 {
+                Text("and \(message.labs.count - 6) more").font(.caption).foregroundStyle(Theme.muted)
+            }
+            if let notice = labsNotice[message.id] {
+                Text(notice).font(.caption.weight(.semibold)).foregroundStyle(Theme.primary)
+            } else if !numeric.isEmpty {
+                Button {
+                    saveLabs(message)
+                } label: {
+                    if savingLabs == message.id {
+                        ProgressView().tint(Theme.onPrimary)
+                    } else {
+                        Text("Save \(numeric.count == 1 ? "this result" : "these \(numeric.count) results") to my records")
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(savingLabs != nil)
+            }
+        }
+        .padding(14)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.border, lineWidth: 1))
+        .padding(.leading, 34)
+    }
+
+    private func saveLabs(_ message: ChatStore.Message) {
+        savingLabs = message.id
+        Task {
+            defer { savingLabs = nil }
+            do {
+                let saved = try await chat.saveLabs(for: message.id, records: records)
+                labsNotice[message.id] = "Saved \(saved) result\(saved == 1 ? "" : "s") to Health Records."
+            } catch {
+                voice.errorMessage = "Those results couldn't be saved. Please try again."
+            }
         }
     }
 
