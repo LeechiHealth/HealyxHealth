@@ -4,6 +4,7 @@ import { agentProviders, chat, type ContentPart } from '@/lib/agents/llm'
 import { z } from 'zod'
 import { authenticateRequest } from '@/lib/serverAuth'
 import { inflateSync, inflateRawSync } from 'zlib'
+import { actionsPrompt, splitActions, type ChatAction } from '@/lib/chatActions'
 
 
 const SYSTEM_PROMPT = `You are the Healyx health guide — warm, encouraging, and refreshingly easy to talk to. Healthcare usually feels cold and clinical; you are the opposite of that.
@@ -58,6 +59,15 @@ function splitExtractedLabs(reply: string): { reply: string; labs: ExtractedLab[
   return { reply: reply.replace(match[0], '').trim(), labs }
 }
 
+/** The reply plus anything to save and any lab results read from a photo. */
+function withExtras(reply: string, actions: ChatAction[], labs: ExtractedLab[]) {
+  return {
+    reply,
+    ...(actions.length ? { actions } : {}),
+    ...(labs.length ? { extractedLabs: labs } : {}),
+  }
+}
+
 // ── Input validation schema ────────────────────────────────────────────────
 const ChatSchema = z.object({
   message: z.string().max(4000).optional(),
@@ -77,6 +87,9 @@ const ChatSchema = z.object({
   })).max(20).optional(),
   // The native app's voice mode: short spoken answers.
   voice: z.boolean().optional(),
+  // The person's local time and zone, so "last night" can be saved correctly.
+  now: z.string().max(40).optional(),
+  tz: z.string().max(64).optional(),
 })
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024
@@ -167,7 +180,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
-    const { message, fileData, images, conversationHistory, voice } = parsed.data
+    const { message, fileData, images, conversationHistory, voice, now, tz } = parsed.data
 
     if (images?.length) {
       for (const image of images) {
@@ -202,7 +215,7 @@ export async function POST(request: NextRequest) {
       { label: 'Recorded medications', result: medications },
       { label: 'Recent recorded labs (include their dates when discussing them)', result: biomarkers },
     ].map(({ label, result }) => `${label}: ${result.error ? 'unavailable' : JSON.stringify(result.data || [])}`).join('\n')
-    const effectiveSystemPrompt = `${SYSTEM_PROMPT}\n\nAuthenticated user's saved records (may be incomplete or out of date; an empty list means no records, not absence of a condition):\n${records.slice(0, 12000)}${voice ? `\n\n${VOICE_PROMPT}` : ''}`
+    const effectiveSystemPrompt = `${SYSTEM_PROMPT}\n\nAuthenticated user's saved records (may be incomplete or out of date; an empty list means no records, not absence of a condition):\n${records.slice(0, 12000)}\n\n${actionsPrompt(now, tz)}${voice ? `\n\n${VOICE_PROMPT}` : ''}`
 
     const isImage = fileData?.mimeType?.startsWith('image/')
     const isPdf = fileData?.mimeType === 'application/pdf'
@@ -233,9 +246,11 @@ export async function POST(request: NextRequest) {
       }, process.env, { onlyGemini: true })
 
       const raw = stripReasoning(typeof answer.content === 'string' ? answer.content : '')
-      const { reply, labs } = splitExtractedLabs(raw)
+      const withoutLabs = splitExtractedLabs(raw)
+      const { reply, actions } = splitActions(withoutLabs.reply)
+      const labs = withoutLabs.labs
       if (!reply) return NextResponse.json({ error: 'Empty response from model' }, { status: 500 })
-      return NextResponse.json(labs.length ? { reply, extractedLabs: labs } : { reply })
+      return NextResponse.json(withExtras(reply, actions, labs))
     }
 
     // ── Image: vision model ──────────────────────────────────────────────────
@@ -257,9 +272,9 @@ export async function POST(request: NextRequest) {
         temperature: 0.7,
       }, process.env, { groqModel: GROQ_VISION_MODEL })
 
-      const reply = stripReasoning(typeof answer.content === 'string' ? answer.content : '')
+      const { reply, actions } = splitActions(stripReasoning(typeof answer.content === 'string' ? answer.content : ''))
       if (!reply) return NextResponse.json({ error: 'Empty response from model' }, { status: 500 })
-      return NextResponse.json({ reply })
+      return NextResponse.json(withExtras(reply, actions, []))
     }
 
     // ── PDF: zlib extraction then text query ─────────────────────────────────
@@ -287,9 +302,9 @@ export async function POST(request: NextRequest) {
       temperature: 0.7,
     })
 
-    const reply = stripReasoning(typeof answer.content === 'string' ? answer.content : '')
+    const { reply, actions } = splitActions(stripReasoning(typeof answer.content === 'string' ? answer.content : ''))
     if (!reply) return NextResponse.json({ error: 'Empty response from model' }, { status: 500 })
-    return NextResponse.json({ reply })
+    return NextResponse.json(withExtras(reply, actions, []))
 
   } catch (error: unknown) {
     const raw = error as any

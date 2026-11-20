@@ -4,6 +4,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const ts = require('typescript')
+const { loadTs } = require('./helpers/load-ts.cjs')
+const chatActions = loadTs('lib/chatActions.ts', { stubs: { zod: require('zod') }, globals: { Date } })
 
 function loadRoute({ authenticated = true, configured = true, gemini = false } = {}) {
   const calls = []
@@ -14,6 +16,7 @@ function loadRoute({ authenticated = true, configured = true, gemini = false } =
   } }
   const scope = { exports: {}, Buffer, console, process: { env: configured ? { GROQ_API_KEY: 'synthetic-test-key', ...(gemini ? { GEMINI_API_KEY: 'synthetic-gemini-key' } : {}) } : {} }, require(name) {
     if (name === 'next/server') return { NextResponse: { json } }
+    if (name === '@/lib/chatActions') return chatActions
     if (name === '@/lib/serverAuth') return { authenticateRequest: async () => authenticated ? { user: { id: 'verified-account' }, supabase: database } : { response: json({ error: 'Sign in' }, { status: 401 }) } }
     if (name === '@/lib/groq/client') return { GROQ_VISION_MODEL: 'synthetic-vision', stripReasoning: text => text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim() }
     if (name === '@/lib/agents/llm') return { agentProviders: () => (configured ? [{ name: 'synthetic' }] : []), chat: async (input, env, options) => { calls.push({ ...input, model: 'synthetic-model', options }); return { message: { role: 'assistant', content: scope.answer || 'Synthetic answer' }, provider: 'synthetic' } } }
@@ -96,4 +99,32 @@ test('chat voice flag asks for short spoken answers', async () => {
   const { post, calls } = loadRoute()
   assert.equal((await post(request({ message: 'How am I doing?', voice: true }))).status, 200)
   assert.match(calls.find(c => c.model).messages[0].content, /spoken aloud/)
+})
+
+test('chat returns saved facts as actions and hides the block', async () => {
+  const { post, calls, scope } = loadRoute()
+  scope.answer = 'Logged your sleep.\n```healyx-actions\n[{"type":"log_sleep","bedtime":"2026-11-19T23:00","wake_time":"2026-11-20T06:30","wakeups":2},{"type":"log_water","ml":500}]\n```'
+  const result = await post(request({ message: 'I slept 11 to 6:30 and drank a bottle of water', now: '2026-11-20T08:00', tz: 'America/New_York' }))
+  assert.equal(result.status, 200)
+  assert.equal(result.body.reply, 'Logged your sleep.')
+  assert.equal(result.body.actions.length, 2)
+  assert.equal(result.body.actions[0].type, 'log_sleep')
+  const modelInput = calls.find(c => c.model)
+  assert.match(modelInput.messages[0].content, /2026-11-20T08:00 \(America\/New_York\)/)
+})
+
+test('chat drops invalid actions and keeps the reply', async () => {
+  const { post, scope } = loadRoute()
+  scope.answer = 'Done.\n```healyx-actions\n[{"type":"log_sleep","bedtime":"2026-11-20T07:00","wake_time":"2026-11-20T06:00"},{"type":"delete_everything"},{"type":"log_stress","rating_1_10":12},{"type":"add_medication","name":"Metformin","dose":"500 mg"}]\n```'
+  const result = await post(request({ message: 'I started metformin 500 mg' }))
+  assert.equal(result.status, 200)
+  assert.equal(result.body.actions.map(a => a.type).join(','), 'add_medication')
+  assert.equal(result.body.reply, 'Done.')
+})
+
+test('chat without a block returns no actions field', async () => {
+  const { post, scope } = loadRoute()
+  scope.answer = 'Plain answer.'
+  const result = await post(request({ message: 'What is HRV?' }))
+  assert.equal(result.body.actions, undefined)
 })
