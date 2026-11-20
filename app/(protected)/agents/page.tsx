@@ -3,7 +3,7 @@
 import * as React from "react"
 import {
   ArrowUp, BellRing, CalendarClock, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, FileText, Loader2, Mic,
-  PanelRight, CalendarPlus, Pill, Plug, Plus, Search, ShoppingBag, Square, X, type LucideIcon,
+  PanelRight, CalendarPlus, Pill, Plug, Plus, Search, ShoppingBag, Square, X, Stethoscope, Receipt, BadgeDollarSign, ListChecks, type LucideIcon,
 } from "lucide-react"
 import { Header } from "@/components/header"
 import { useAuth } from "@/components/AuthContext"
@@ -12,7 +12,7 @@ import { AgentAvatar, AGENT_ACCENTS } from "@/components/agents/agent-avatar"
 import { useVoiceInput } from "@/hooks/useVoiceInput"
 import { supabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
-import { AGENTS, AGENT_IDS, CONNECTIONS, agentById, type AgentId } from "@/lib/agents/config"
+import { AGENTS, AGENT_IDS, CONNECTIONS, agentById, agentName, isAgentId, type AgentId } from "@/lib/agents/config"
 import { formatClock, formatLocalDate, formatLocalDateTime, localNow } from "@/lib/agents/dates"
 import type { AgentMessage, AgentTask, MessageMeta, TaskKind, TaskStatus } from "@/lib/agents/tasks"
 
@@ -24,7 +24,7 @@ type Storage = "loading" | "ready" | "missing" | "error"
 type QueueFilter = "todo" | "waiting" | "done"
 type MobileView = "list" | "chat" | "panel"
 
-const emptyThreads = (): Threads => ({ appointments: [], medications: [], research: [], shopping: [] })
+const emptyThreads = (): Threads => ({ care_finder: [], bill_advocate: [], rx_saver: [], follow_through: [], research: [] })
 const isMissingTable = (error: { code?: string; message?: string } | null) =>
   Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message || "")))
 
@@ -34,6 +34,10 @@ const KIND: Record<TaskKind, { icon: LucideIcon; label: string }> = {
   refill_request: { icon: Pill, label: "Refill request" },
   research_brief: { icon: FileText, label: "Research brief" },
   shopping_list: { icon: ShoppingBag, label: "Shopping list" },
+  care_options: { icon: Stethoscope, label: "Care options" },
+  bill_case: { icon: Receipt, label: "Bill case" },
+  rx_savings: { icon: BadgeDollarSign, label: "Rx savings" },
+  follow_up: { icon: ListChecks, label: "Follow-up" },
 }
 
 const FILTERS: { key: QueueFilter; label: string }[] = [
@@ -154,7 +158,7 @@ function ConnectionsList() {
 
 export default function AgentsPage() {
   const { user } = useAuth()
-  const [active, setActive] = React.useState<AgentId>("appointments")
+  const [active, setActive] = React.useState<AgentId>("care_finder")
   const [threads, setThreads] = React.useState<Threads>(emptyThreads)
   const [tasks, setTasks] = React.useState<AgentTask[]>([])
   const [storage, setStorage] = React.useState<Storage>("loading")
@@ -205,7 +209,7 @@ export default function AgentsPage() {
       if (isMissingTable(messages.error) || isMissingTable(saved.error)) { setStorage("missing"); return }
       if (messages.error || saved.error) { setStorage("error"); return }
       const grouped = emptyThreads()
-      for (const message of [...(messages.data || [])].reverse() as AgentMessage[]) grouped[message.agent]?.push(message)
+      for (const message of [...(messages.data || [])].reverse() as AgentMessage[]) if (isAgentId(message.agent)) grouped[message.agent].push(message)
       setThreads(grouped)
       setTasks((saved.data || []) as AgentTask[])
       setStorage("ready")
@@ -337,7 +341,7 @@ export default function AgentsPage() {
   }
 
   function openTask(task: AgentTask) {
-    setActive(task.agent)
+    if (isAgentId(task.agent)) setActive(task.agent)
     setFilter(task.status === "done" ? "done" : task.status === "waiting" ? "waiting" : "todo")
     setFocusTaskId(task.id)
     setPanelOpen(true)
@@ -437,12 +441,12 @@ export default function AgentsPage() {
         })}
       </div>
       <div className="px-2 pb-6">
-        {needsYou.filter(t => matches(`${t.title} ${agentById(t.agent)?.name}`)).length === 0 ? (
+        {needsYou.filter(t => matches(`${t.title} ${agentName(t.agent)}`)).length === 0 ? (
           <div className="mx-2 rounded-2xl border border-dashed border-border px-4 py-6 text-center">
             <p className="text-sm font-medium">Nothing needs you right now.</p>
             <p className="text-xs text-muted-foreground mt-1">Tap an agent to start. Drafts and reminders show up here.</p>
           </div>
-        ) : needsYou.filter(t => matches(`${t.title} ${agentById(t.agent)?.name}`)).map(task => (
+        ) : needsYou.filter(t => matches(`${t.title} ${agentName(t.agent)}`)).map(task => (
           <button key={task.id} type="button" onClick={() => openTask(task)} className="w-full flex items-center gap-3 rounded-2xl px-2.5 py-3 text-left active:bg-secondary/60">
             <AgentAvatar agent={task.agent} size={44} />
             <span className="min-w-0 flex-1">
@@ -450,7 +454,7 @@ export default function AgentsPage() {
                 <span className="text-[15px] font-semibold truncate">{task.title}</span>
                 <span className="shrink-0 text-[11px] text-muted-foreground">{formatWhen(task.created_at)}</span>
               </span>
-              <span className="block text-[13px] text-muted-foreground truncate">{agentById(task.agent)?.name} · {summaryLine(task) || KIND[task.kind].label}</span>
+              <span className="block text-[13px] text-muted-foreground truncate">{agentName(task.agent)} · {summaryLine(task) || KIND[task.kind].label}</span>
             </span>
           </button>
         ))}
@@ -570,7 +574,7 @@ export default function AgentsPage() {
               </button>
             )}
           </form>
-          <p className="mt-2 px-2 text-center text-[10px] leading-snug text-muted-foreground/80">Sends your message and {agent.usesRecords} to our AI provider.{active === "research" || active === "shopping" ? " Public sources get search terms only." : ""} Not medical advice. In an emergency, call 911.</p>
+          <p className="mt-2 px-2 text-center text-[10px] leading-snug text-muted-foreground/80">Sends your message and {agent.usesRecords} to our AI provider.{active === "research" ? " Public sources get search terms only." : ""} Not medical advice. In an emergency, call 911.</p>
         </div>
       </div>
     </section>

@@ -27,15 +27,27 @@ export const URGENT_REPLIES: Record<UrgentKind, string> = {
   crisis: "I'm really glad you said something. If you're thinking about ending your life or hurting yourself, please call or text 988 to reach the Suicide & Crisis Lifeline (US) now. If you're in immediate danger, call 911. You don't have to go through this alone.",
 }
 
-// Agents prepare drafts. They never send, book, call or buy, so a reply that
-// says otherwise is replaced rather than shown.
+// Agents act on the person's own Healyx queue and memory without asking first, but they
+// never send, book, call, pay or buy, so a reply that says otherwise is replaced rather than shown.
 const OVERCLAIMS = [
-  /\b(i|i've|i have|we|we've|we have|healyx has)\s+(already\s+|just\s+|now\s+|successfully\s+)?(booked|scheduled|sent|submitted|ordered|purchased|bought|called|faxed|emailed|messaged|contacted|notified|placed|requested|refilled)\b/i,
-  /\b(appointment|visit|refill|order|request|prescription|message)\s+(has been|have been|is now)\s+(booked|scheduled|sent|submitted|placed|confirmed|ordered|on (its|the) way)\b/i,
-  /\b(i('ll| will)|we('ll| will))\s+(call|email|message|contact|book|order|send)\b/i,
+  /\b(i|i've|i have|we|we've|we have|healyx has)\s+(already\s+|just\s+|now\s+|successfully\s+)?(booked|scheduled|sent|submitted|ordered|purchased|bought|paid|charged|called|faxed|emailed|messaged|contacted|notified|placed|requested|refilled|transferred|appealed|filed)\b/i,
+  /\b(appointment|visit|refill|order|request|prescription|message|payment|bill|appeal|claim)\s+(has been|have been|is now)\s+(booked|scheduled|sent|submitted|placed|confirmed|ordered|paid|filed|on (its|the) way)\b/i,
+  /\b(i('ll| will)|we('ll| will))\s+(call|email|message|contact|book|order|send|pay|buy|purchase)\b/i,
 ]
 
 export const HONEST_FALLBACK_REPLY = "Here's what I prepared. Nothing has been sent, booked or bought. Review it in your queue and take the next step when you're ready."
+
+/** Task kinds whose next step can cost the person money. The app shows "You confirm any payment" on them. */
+export const SPENDING_KINDS = new Set(["bill_case", "rx_savings", "care_options", "shopping_list"])
+
+/**
+ * Agents never ask before acting, with one exception: anything that spends money.
+ * No tool can pay or buy; tasks whose next step costs money are marked so the person confirms it.
+ */
+export function guardSpending<T extends { kind: string; payload: Record<string, unknown> }>(task: T): T {
+  if (!SPENDING_KINDS.has(task.kind)) return task
+  return { ...task, payload: { ...task.payload, confirm_before_spending: true } }
+}
 
 export function overclaims(text: string): boolean {
   return OVERCLAIMS.some(pattern => pattern.test(text))

@@ -3,7 +3,7 @@
 import * as React from "react"
 import { AlertTriangle, CalendarPlus, Check, ChevronDown, Copy, ExternalLink, Phone, MessageSquare, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { agentById } from "@/lib/agents/config"
+import { agentName } from "@/lib/agents/config"
 import { formatClock, formatLocalDate, formatLocalDateTime, isLocalDate, isLocalDateTime, localNow, localToUtcIso } from "@/lib/agents/dates"
 import { downloadIcs, googleCalendarUrl, recurrenceRule, type CalendarEvent } from "@/lib/agents/ics"
 import { placeholders } from "@/lib/agents/safety"
@@ -289,6 +289,77 @@ function ShoppingBody({ task }: Pick<TaskCardProps, "task">) {
   )
 }
 
+const usd = (value: unknown) => (typeof value === "number" ? value.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: value < 100 ? 2 : 0 }) : null)
+const SpendNote = () => <p className="text-[10px] text-muted-foreground/80">Healyx never pays or orders for you. You confirm anything that costs money.</p>
+
+function CareOptionsBody({ task }: Pick<TaskCardProps, "task">) {
+  const p = task.payload
+  return (
+    <div className="space-y-2.5">
+      {(p.options || []).map((o: any, i: number) => (
+        <div key={i} className="rounded-xl border border-border p-2.5 space-y-1">
+          <p className="text-sm font-semibold">{i + 1}. {o.name}{o.specialty ? <span className="font-normal text-muted-foreground"> · {o.specialty}</span> : null}</p>
+          <p className="text-[11px] text-muted-foreground">{[o.address, o.distance_miles != null ? `${o.distance_miles} mi` : null, o.in_network === "yes" ? "In network" : o.in_network === "no" ? "Out of network" : "Network: verify", o.next_opening ? `Next: ${o.next_opening}` : null, usd(o.price)].filter(Boolean).join(" · ")}</p>
+          {o.notes && <p className="text-[11px] text-muted-foreground">{o.notes}</p>}
+          <div className="flex flex-wrap gap-1.5">
+            {o.phone && <a href={`tel:${String(o.phone).replace(/[^\d+]/g, "")}`} className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"><Phone className="h-3 w-3" />{o.phone}</a>}
+            {o.url && <a href={o.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground">Website<ExternalLink className="h-3 w-3" /></a>}
+          </div>
+        </div>
+      ))}
+      <Draft icon={Phone} label="Call script" text={p.call_script} />
+      <SpendNote />
+    </div>
+  )
+}
+
+function BillCaseBody({ task }: Pick<TaskCardProps, "task">) {
+  const p = task.payload
+  return (
+    <div className="space-y-2.5">
+      {p.estimated_savings != null && <p className="text-sm font-semibold">Possible savings: {usd(p.estimated_savings)}</p>}
+      {(p.findings || []).map((f: any, i: number) => (
+        <div key={i} className="rounded-xl border border-border p-2.5"><p className="text-xs font-semibold capitalize">{String(f.issue).replace(/_/g, " ")}{f.amount != null ? ` · ${usd(f.amount)}` : ""}</p><p className="text-[11px] text-muted-foreground mt-0.5">{f.detail}</p></div>
+      ))}
+      {p.financial_assistance && <p className="text-[11px] text-muted-foreground"><span className="font-semibold text-foreground">Financial help: </span>{p.financial_assistance}</p>}
+      {(p.next_steps || []).length > 0 && <ol className="list-decimal pl-4 text-[12px] space-y-0.5">{p.next_steps.map((step: string, i: number) => <li key={i}>{step}</li>)}</ol>}
+      <Draft icon={MessageSquare} label={p.letter_type === "itemized_bill_request" ? "Itemized bill request" : p.letter_type === "financial_assistance" ? "Financial assistance request" : "Appeal letter"} text={p.letter} />
+      <Draft icon={Phone} label="Phone script" text={p.phone_script} />
+      <SpendNote />
+    </div>
+  )
+}
+
+function RxSavingsBody({ task }: Pick<TaskCardProps, "task">) {
+  const p = task.payload
+  return (
+    <div className="space-y-2.5">
+      {p.best && <p className="text-sm font-semibold">{p.best}</p>}
+      <div className="divide-y divide-border rounded-xl border border-border">
+        {(p.prices || []).map((o: any, i: number) => (
+          <div key={i} className="flex items-start justify-between gap-2 px-2.5 py-2">
+            <div className="min-w-0"><p className="text-xs font-semibold">{o.url ? <a href={o.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary">{o.pharmacy}</a> : o.pharmacy}</p>{o.note && <p className="text-[11px] text-muted-foreground">{o.note}</p>}</div>
+            <p className="text-sm font-semibold tabular-nums">{usd(o.price) || "Check"}</p>
+          </div>
+        ))}
+      </div>
+      {(p.alternatives || []).length > 0 && <p className="text-[11px] text-muted-foreground"><span className="font-semibold text-foreground">Ask your prescriber about: </span>{p.alternatives.join("; ")}</p>}
+      <SpendNote />
+    </div>
+  )
+}
+
+function FollowUpBody({ task }: Pick<TaskCardProps, "task">) {
+  const p = task.payload
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[12px]">{p.why}</p>
+      <p className="text-[12px] font-semibold">Next: {p.next_step}</p>
+      {p.due_on && <p className="text-[11px] text-muted-foreground">Due {formatLocalDate(p.due_on)}</p>}
+    </div>
+  )
+}
+
 export function summaryLine(task: AgentTask): string {
   const p = task.payload
   switch (task.kind) {
@@ -297,6 +368,10 @@ export function summaryLine(task: AgentTask): string {
     case "refill_request": return p.remind_on ? `Request by ${formatLocalDate(p.remind_on)}` : p.pharmacy || "Draft request ready"
     case "research_brief": return `${(p.sources || []).length} source${(p.sources || []).length === 1 ? "" : "s"}${p.label_mentions?.length ? ` · ${p.label_mentions.length} label mention${p.label_mentions.length > 1 ? "s" : ""}` : ""}`
     case "shopping_list": return `${(p.items || []).length} items`
+    case "care_options": return `${(p.options || []).length} options`
+    case "bill_case": return p.estimated_savings != null ? `Could save ${usd(p.estimated_savings)}` : `${(p.findings || []).length} issues found`
+    case "rx_savings": return p.best || `${(p.prices || []).length} prices`
+    case "follow_up": return p.due_on ? `Due ${formatLocalDate(p.due_on)}` : "Open loop"
     default: return ""
   }
 }
@@ -307,14 +382,13 @@ export function TaskCard({ task, defaultOpen = false, onStatus, onPayload }: Tas
   React.useEffect(() => {
     if (open) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
   }, [open])
-  const agent = agentById(task.agent)
   return (
     <article ref={ref} className={cn("scroll-mt-24 rounded-2xl border bg-card transition-colors", defaultOpen ? "border-primary/40" : "border-border", task.status === "done" && "opacity-75")}>
       <div className="flex items-start gap-3 p-3.5">
         <AgentAvatar agent={task.agent} size={32} className="mt-0.5" />
         <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} className="flex-1 min-w-0 text-left">
           <p className={cn("text-sm font-semibold text-foreground leading-snug", task.status === "done" && "line-through decoration-muted-foreground/60")}>{task.title}</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{agent?.name}{summaryLine(task) ? ` · ${summaryLine(task)}` : ""}{task.status === "waiting" ? " · waiting on reply" : ""}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{agentName(task.agent)}{summaryLine(task) ? ` · ${summaryLine(task)}` : ""}{task.status === "waiting" ? " · waiting on reply" : ""}</p>
         </button>
         <button type="button" onClick={() => setOpen(o => !o)} aria-label={open ? "Collapse" : "Expand"} className="text-muted-foreground hover:text-foreground mt-1"><ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} /></button>
         <button type="button" onClick={() => onStatus("dismissed")} aria-label="Dismiss task" className="text-muted-foreground/70 hover:text-foreground mt-1"><X className="h-4 w-4" /></button>
@@ -326,6 +400,10 @@ export function TaskCard({ task, defaultOpen = false, onStatus, onPayload }: Tas
           {task.kind === "refill_request" && <RefillBody task={task} onPayload={onPayload} />}
           {task.kind === "research_brief" && <ResearchBody task={task} />}
           {task.kind === "shopping_list" && <ShoppingBody task={task} />}
+          {task.kind === "care_options" && <CareOptionsBody task={task} />}
+          {task.kind === "bill_case" && <BillCaseBody task={task} />}
+          {task.kind === "rx_savings" && <RxSavingsBody task={task} />}
+          {task.kind === "follow_up" && <FollowUpBody task={task} />}
           <div className="flex items-center justify-between gap-2 pt-1">
             <StatusActions task={task} onStatus={onStatus} />
             {task.local && <span className="text-[10px] text-health-warning">Not saved</span>}

@@ -1,8 +1,15 @@
 // Shared by the Agents page and /api/agents/run. Capability labels must stay
 // honest: "works" means usable today; "coming" means planned and not built yet.
 
-export const AGENT_IDS = ["appointments", "medications", "research", "shopping"] as const
+export const AGENT_IDS = ["care_finder", "bill_advocate", "rx_saver", "follow_through", "research"] as const
 export type AgentId = (typeof AGENT_IDS)[number]
+
+/** Agents from before November 2026. Their saved conversations and tasks stay readable, but new runs use AGENT_IDS. */
+export const LEGACY_AGENT_IDS = ["appointments", "medications", "shopping"] as const
+export type LegacyAgentId = (typeof LEGACY_AGENT_IDS)[number]
+export type StoredAgentId = AgentId | LegacyAgentId
+
+export const LEGACY_AGENT_NAMES: Record<LegacyAgentId, string> = { appointments: "Appointments", medications: "Medications", shopping: "Shopping" }
 
 export type CapabilityStatus = "works" | "needs_connection" | "coming"
 export interface Capability { label: string; status: CapabilityStatus }
@@ -23,43 +30,83 @@ export interface AgentDefinition {
 
 export const AGENTS: AgentDefinition[] = [
   {
-    id: "appointments",
-    name: "Appointments",
-    tagline: "Finds care, preps visits, sets reminders",
-    intro: "Hey, I'm Appointments. I find doctors and clinics online, get your visits ready and keep them on your calendar.",
-    howTo: "Tell me who, when, or what's wrong.",
-    usesRecords: "your condition names, medication names and listed prescribers",
+    id: "care_finder",
+    name: "Care Finder",
+    tagline: "In-network, soonest and cheapest care near you",
+    intro: "Hey, I'm Care Finder. I find doctors, clinics and tests near you, check who takes your insurance, and line up the soonest, cheapest option.",
+    howTo: "Tell me what care you need.",
+    usesRecords: "your insurance plan name, city or ZIP, condition names and listed doctors",
     capabilities: [
-      { label: "Browse the web for doctors, clinics and hours", status: "works" },
-      { label: "Draft appointment requests and call scripts", status: "works" },
-      { label: "Calendar reminders for Apple, Google and Outlook", status: "works" },
-      { label: "Fill in booking forms, with your approval", status: "coming" },
-      { label: "Scheduled check-ins", status: "coming" },
+      { label: "Search the national provider registry (NPI) by specialty and area", status: "works" },
+      { label: "Browse the web for openings, reviews and cash prices", status: "works" },
+      { label: "Ranked shortlists with phone numbers and call scripts", status: "works" },
+      { label: "Remembers your insurance, ZIP and doctors", status: "works" },
+      { label: "Call offices to confirm insurance and book", status: "coming" },
     ],
     starters: [
-      "Help me book my annual physical",
-      "I have a dentist appointment next Thursday at 2:30pm. Remind me.",
-      "What should I ask at my next checkup?",
+      "Find an in-network dermatologist near me with the soonest opening",
+      "Where's the cheapest MRI of the knee near me?",
+      "I need a primary care doctor who takes my insurance",
     ],
   },
   {
-    id: "medications",
-    name: "Medications",
-    tagline: "Reminders, refills and label checks",
-    intro: "Hi, I'm Medications. I keep your doses and refills on track and check labels when something new comes up.",
-    howTo: "Name a medication and what you need.",
-    usesRecords: "your medication list, doses, pharmacy and prescribers",
+    id: "bill_advocate",
+    name: "Bill & Insurance Advocate",
+    tagline: "Catches billing errors, fights denials, finds financial help",
+    intro: "Hi, I'm your Bill & Insurance Advocate. Send me a medical bill, an insurance statement or a denial, and I'll find errors, draft appeals and look for financial help.",
+    howTo: "Send a bill photo or describe it.",
+    usesRecords: "your insurance plan name and the bills or statements you share",
     capabilities: [
-      { label: "Daily medication reminders on your calendar", status: "works" },
-      { label: "Refill drafts with run-out dates worked out", status: "works" },
-      { label: "FDA label and web lookups", status: "works" },
-      { label: "Request refills on pharmacy sites, with your approval", status: "coming" },
-      { label: "Scheduled refill check-ins", status: "coming" },
+      { label: "Read bill and EOB photos", status: "works" },
+      { label: "Flag duplicate charges, upcoding, unbundling and surprise bills", status: "works" },
+      { label: "Check a hospital's financial assistance policy", status: "works" },
+      { label: "Draft appeal letters and itemized bill requests", status: "works" },
+      { label: "Send letters and track replies", status: "coming" },
     ],
     starters: [
-      "Set up reminders for my medications",
-      "I have 10 doses left and take it once a day. When should I refill?",
-      "Draft a refill request for my pharmacy",
+      "My insurance denied my MRI. Help me appeal it.",
+      "This ER bill looks way too high",
+      "Do I qualify for financial assistance at my hospital?",
+    ],
+  },
+  {
+    id: "rx_saver",
+    name: "Rx Saver",
+    tagline: "Cheapest way to fill your prescriptions, plus refills",
+    intro: "Hey, I'm Rx Saver. I compare what your prescriptions cost at Amazon Pharmacy, Cost Plus Drugs, Publix and discount cards, and keep your refills on time.",
+    howTo: "Name a medication to price.",
+    usesRecords: "your medication list, doses, pharmacy, prescribers and insurance plan name",
+    capabilities: [
+      { label: "Price checks across online and local pharmacies", status: "works" },
+      { label: "Generic and lower-cost alternatives to ask your prescriber about", status: "works" },
+      { label: "Refill drafts with run-out dates and reminders", status: "works" },
+      { label: "Medication reminders on your calendar", status: "works" },
+      { label: "Transfer or order prescriptions for you", status: "coming" },
+    ],
+    starters: [
+      "Where's the cheapest place to fill my prescriptions?",
+      "Is there a cheaper alternative to my medication?",
+      "I have 10 pills left, once a day. When should I refill?",
+    ],
+  },
+  {
+    id: "follow_through",
+    name: "Follow-Through",
+    tagline: "Catches results, referrals and screenings that slip",
+    intro: "Hi, I'm Follow-Through. I look across your records for loose ends, like labs that need a recheck, referrals never booked and screenings due, and put reminders on your list.",
+    howTo: "Ask what you're forgetting.",
+    usesRecords: "your recent lab results, conditions, medications, age, sex and agent queue",
+    capabilities: [
+      { label: "Find labs flagged without a recheck", status: "works" },
+      { label: "Screenings due for your age and sex (USPSTF)", status: "works" },
+      { label: "Refills running out and open referrals", status: "works" },
+      { label: "Reminders with due dates and calendar alerts", status: "works" },
+      { label: "Check in on a schedule", status: "coming" },
+    ],
+    starters: [
+      "What am I forgetting about my health?",
+      "Which screenings am I due for?",
+      "Did any of my labs need a recheck?",
     ],
   },
   {
@@ -81,33 +128,21 @@ export const AGENTS: AgentDefinition[] = [
       "Are there recruiting trials for my condition?",
     ],
   },
-  {
-    id: "shopping",
-    name: "Shopping",
-    tagline: "Finds supplies, checks them against your meds",
-    intro: "Hey, I'm Shopping. I find health supplies and over-the-counter products online and check them against your meds.",
-    howTo: "Tell me what you need to buy.",
-    usesRecords: "your medication and condition names",
-    capabilities: [
-      { label: "Browse stores and reviews for options", status: "works" },
-      { label: "OTC label check against your records", status: "works" },
-      { label: "Shopping lists with what to look for", status: "works" },
-      { label: "Add to cart on store sites, with your approval", status: "coming" },
-    ],
-    starters: [
-      "I need a home blood pressure monitor",
-      "What should be in a cold and flu kit?",
-      "Can I pick up ibuprofen with my current meds?",
-    ],
-  },
 ]
 
 export const CONNECTIONS: { name: string; detail: string; status: CapabilityStatus }[] = [
   { name: "Web browsing", detail: "Agents search and read public sites", status: "works" },
+  { name: "Provider registry", detail: "The national NPI registry of US clinicians", status: "works" },
+  { name: "Agent memory", detail: "Your insurance, ZIP, pharmacy and doctors, saved for next time", status: "works" },
   { name: "Research sources", detail: "PubMed, ClinicalTrials.gov and openFDA", status: "works" },
   { name: "Calendar", detail: "Reminders as a file or Google Calendar link", status: "works" },
   { name: "Website actions", detail: "Forms filled in a secure browser, you approve", status: "coming" },
   { name: "Scheduled check-ins", detail: "Agents message you first on a schedule", status: "coming" },
 ]
 
+export const isAgentId = (id: string): id is AgentId => (AGENT_IDS as readonly string[]).includes(id)
+
 export const agentById = (id: string) => AGENTS.find(agent => agent.id === id)
+
+/** Display name for any stored agent id, including the retired ones. */
+export const agentName = (id: string) => agentById(id)?.name ?? LEGACY_AGENT_NAMES[id as LegacyAgentId] ?? "Agent"

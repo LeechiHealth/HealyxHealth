@@ -72,14 +72,14 @@ test('replies that claim an action was taken are replaced', () => {
 test('agents only keep valid actions of their own kinds; bad dates are dropped, not guessed', () => {
   const appointment = { kind: 'appointment', title: 'Physical', reason: 'Annual', starts_at: '2026-13-40T10:00', request_message: 'Hello', questions_to_ask: null }
   const shopping = { kind: 'shopping_list', title: 'Kit', items: [{ name: 'Thermometer', why: 'Fever', look_for: 'Digital', search_terms: 'digital thermometer' }] }
-  const kept = schema.validActions('appointments', [appointment, shopping, { kind: 'appointment' }])
+  const kept = schema.validActions('care_finder', [appointment, shopping, { kind: 'appointment' }])
   assert.equal(kept.length, 1)
   assert.equal(kept[0].kind, 'appointment')
   assert.equal(kept[0].starts_at, undefined)
   assert.deepEqual([...kept[0].questions_to_ask], [])
   assert.equal(schema.validActions('research', [appointment]).length, 0)
-  assert.equal(schema.validActions('shopping', [shopping]).length, 1)
-  assert.equal(schema.validActions('medications', [{ kind: 'med_reminder', medication: 'Metformin', times: ['8am'] }]).length, 0)
+  assert.equal(schema.validActions('rx_saver', [shopping]).length, 0)
+  assert.equal(schema.validActions('rx_saver', [{ kind: 'med_reminder', medication: 'Metformin', times: ['8am'] }]).length, 0)
 })
 
 test('label mentions find record names in warning sections but skip the drug itself', () => {
