@@ -1,19 +1,21 @@
 // The tools each agent can choose to call. Every tool either looks something up
-// (web, PubMed, trials, FDA labels, the person's queue) or changes the person's
-// own Healyx queue. None of them contacts anyone, logs in, submits or buys.
+// (web, PubMed, trials, FDA labels, the NPI registry, the person's queue and memory)
+// or changes the person's own Healyx queue and memory. None of them contacts anyone,
+// logs in, submits, pays or buys.
 
 import type { z } from "zod"
 import type { AgentId } from "@/lib/agents/config"
 import type { ToolSchema } from "@/lib/agents/llm"
 import { browseWeb } from "@/lib/agents/web"
 import { fetchDrugLabel, labelMentions, searchPubMed, searchTrials, sectionText, type DrugLabel, type LabelMention } from "@/lib/agents/research"
-import { AppointmentAction, MedReminderAction, RefillAction, ShoppingAction } from "@/lib/agents/schema"
+import { AppointmentAction, BillCaseAction, CareOptionsAction, FollowUpAction, MedReminderAction, RefillAction, RxSavingsAction, ShoppingAction } from "@/lib/agents/schema"
+import { searchProviders } from "@/lib/agents/providers"
 import { taskFromAction, type NewTask, type TaskStatus } from "@/lib/agents/tasks"
 import { recordTerms, type Records } from "@/lib/agents/records"
 
 type Env = Record<string, string | undefined>
 
-export interface GatheredSource { n: number; kind: "web" | "pubmed" | "trial" | "fda_label"; title: string; url: string; meta?: string }
+export interface GatheredSource { n: number; kind: "web" | "pubmed" | "trial" | "fda_label" | "npi"; title: string; url: string; meta?: string }
 
 export interface AgentContext {
   agent: AgentId
@@ -28,6 +30,10 @@ export interface AgentContext {
   sources: GatheredSource[]
   mentions: LabelMention[]
   env: Env
+  /** Rounded location the app sent for "near me" searches. */
+  location?: { lat: number; lon: number; city?: string; zip?: string; state?: string }
+  /** Injectable for tests. */
+  fetcher?: typeof fetch
 }
 
 export interface AgentTool {
@@ -119,6 +125,36 @@ const drugLabel: AgentTool = {
   },
 }
 
+const npiLookup: AgentTool = {
+  name: "find_providers",
+  description: "Search the national NPI registry (CMS) for clinicians or facilities by specialty and area. Returns names, specialty, practice address and phone. It does NOT say who is in network, taking new patients or how soon they can see someone; check that with web_browse and say 'verify' when unknown. Specialty uses registry words like Dermatology, Family Medicine, Internal Medicine, Orthopaedic Surgery, Radiology, Urgent Care, Physical Therapist.",
+  parameters: {
+    type: "object",
+    properties: {
+      specialty: strOrNull("Registry specialty, e.g. Dermatology"), name: strOrNull("A doctor or clinic name to look up"),
+      city: strOrNull("City"), state: strOrNull("Two-letter state"), zip: strOrNull("5-digit ZIP"),
+      organization: { type: "boolean", description: "True for clinics, hospitals, imaging centers and urgent care" },
+    },
+  },
+  label: args => `Searching the NPI registry${args?.specialty ? ` for ${clip(args.specialty, 40)}` : ""}${args?.city || args?.zip ? ` near ${clip(args.city || args.zip, 30)}` : ""}`,
+  run: async (args, ctx) => {
+    const zip = (typeof args?.zip === "string" && /^\d{5}$/.test(args.zip) ? args.zip : undefined) || ctx.location?.zip
+    const city = (typeof args?.city === "string" && args.city.trim()) || (zip ? undefined : ctx.location?.city)
+    if (!args?.specialty && !args?.name) return { error: "Give a specialty or a name to look up." }
+    if (!zip && !city && !args?.name) return { error: "I need a city or ZIP. Check recall_facts, or ask the person once and remember it." }
+    const state = (typeof args?.state === "string" && args.state) || (city === ctx.location?.city ? ctx.location?.state : undefined)
+    const results = await searchProviders({ specialty: args?.specialty, name: args?.name, city, state, zip, organization: Boolean(args?.organization), limit: 12 }, ctx.fetcher)
+    return {
+      count: results.length,
+      providers: results.map(p => ({
+        n: addSource(ctx, { kind: "npi", title: `${p.name}${p.credential ? `, ${p.credential}` : ""} (NPI registry)`, url: `https://npiregistry.cms.hhs.gov/provider-view/${p.npi}`, meta: p.specialty }),
+        ...p,
+      })),
+      note: results.length ? "Registry data. Insurance, availability and new-patient status still need checking." : "No matches. Try a broader specialty word, the city instead of ZIP, or organization true.",
+    }
+  },
+}
+
 // ─── The person's queue ─────────────────────────────────────────────────────
 
 const listTasks: AgentTool = {
@@ -147,6 +183,42 @@ const updateTask: AgentTool = {
     if (error || !data) return { error: "That task couldn't be updated. Check the id with list_my_tasks." }
     ctx.updates.push({ id: data.id, status })
     return { updated: true, title: data.title, status }
+  },
+}
+
+// ─── Memory (insurance, ZIP, pharmacy, doctors) ─────────────────────────────
+
+const MEMORY_KEYS = ["insurance_plan", "insurance_member_type", "zip", "city", "preferred_pharmacy", "doctors", "budget_notes", "other"] as const
+
+const rememberFact: AgentTool = {
+  name: "remember_fact",
+  description: `Save a fact about the person for next time, when they tell you it: ${MEMORY_KEYS.join(", ")}. Never save ID, policy or member numbers, passwords or payment details.`,
+  parameters: { type: "object", properties: { key: { type: "string", enum: [...MEMORY_KEYS] }, value: str("The fact, in a few words, e.g. 'Florida Blue PPO' or 'Publix on Bruce B Downs'") }, required: ["key", "value"] },
+  label: args => `Remembering your ${String(args?.key || "detail").replace(/_/g, " ")}`,
+  run: async (args, ctx) => {
+    const key = String(args?.key || "")
+    const value = clip(args?.value, 300)
+    if (!(MEMORY_KEYS as readonly string[]).includes(key) || !value) return { error: `Use one of: ${MEMORY_KEYS.join(", ")}, with a short value.` }
+    // Long digit runs look like member, policy or card numbers. Don't keep them.
+    if (/\d{6,}/.test(value.replace(/[\s-]/g, "")) && key !== "zip") return { error: "Not saved: that looks like an ID or account number. Save the plan or place name only." }
+    const { error } = await ctx.db.from("agent_memory").upsert({ user_id: ctx.userId, key, value: { text: value }, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" })
+    if (error) return { error: "Memory isn't available right now. Carry on and use the fact for this conversation." }
+    return { saved: true, key, value }
+  },
+}
+
+const recallFacts: AgentTool = {
+  name: "recall_facts",
+  description: "Read what you've remembered about the person before (insurance plan, ZIP, city, preferred pharmacy, doctors). Check this before asking them.",
+  parameters: { type: "object", properties: {} },
+  label: () => "Checking what I remember",
+  run: async (_args, ctx) => {
+    const { data, error } = await ctx.db.from("agent_memory").select("key, value, updated_at").eq("user_id", ctx.userId).limit(20)
+    if (error) return { facts: {}, note: "Memory isn't available right now." }
+    const facts = Object.fromEntries((data || []).map((row: any) => [row.key, row.value?.text ?? row.value]))
+    if (ctx.location?.city && !facts.city) facts.city_from_device = ctx.location.city
+    if (ctx.location?.zip && !facts.zip) facts.zip_from_device = ctx.location.zip
+    return { facts }
   },
 }
 
@@ -295,11 +367,107 @@ const researchBrief: AgentTool = {
   },
 }
 
+const ISSUES = ["duplicate charge", "upcoding", "unbundling", "surprise bill", "denied claim", "coding question", "not covered", "price check", "other"]
+
+const careOptions: AgentTool = {
+  name: "prepare_care_options",
+  description: "Save a ranked shortlist of places to get the care they need: name, specialty, NPI if known, address, phone, distance in miles, next_opening if you saw one, price (USD) only if you saw it on a page, in_network (yes, no or unknown unless a page confirmed it), notes on why it ranks there and where facts came from, and a url. Include a call_script that confirms insurance, new-patient status, earliest opening and price in one call. Rank in-network first, then soonest, then cheapest, then closest.",
+  parameters: {
+    type: "object",
+    properties: {
+      title: str("e.g. Dermatologists near New Tampa"), need: str("What care they need"),
+      options: { type: "array", items: { type: "object", properties: {
+        name: str("Doctor or facility"), specialty: strOrNull("Specialty"), npi: strOrNull("10-digit NPI from find_providers"),
+        address: strOrNull("Practice address"), phone: strOrNull("Phone"), distance_miles: { type: "number" },
+        next_opening: strOrNull("Only if seen on a page"), price: { type: "number", description: "USD, only a price you saw on a page" },
+        in_network: { type: "string", enum: ["yes", "no", "unknown"] }, notes: strOrNull("Why it ranks here and sources"), url: strOrNull("Booking or info page"),
+      }, required: ["name"] } },
+      call_script: str("What to say when calling"),
+    },
+    required: ["title", "need", "options", "call_script"],
+  },
+  label: args => `Ranking ${Array.isArray(args?.options) ? `${args.options.length} ` : ""}care options`,
+  run: async (args, ctx) => {
+    const parsed = CareOptionsAction.safeParse({ ...args, kind: "care_options" })
+    if (!parsed.success) return { error: "Not saved. Fix these and call again.", problems: problems(parsed.error) }
+    const task = saveTask(ctx, parsed.data)
+    return { saved: true, title: task.title, options: parsed.data.options.length }
+  },
+}
+
+const billCase: AgentTool = {
+  name: "prepare_bill_case",
+  description: `Save a bill or insurance case: each likely problem (issue: one of ${ISSUES.join(", ")}) with the detail and the dollar amount involved, the estimated_savings in USD if clear, what you found about the hospital's financial assistance (charity care) policy, next steps, one ready-to-send letter with its letter_type (appeal, itemized_bill_request, financial_assistance, dispute or other), a phone script, and a deadline (YYYY-MM-DD) when an appeal or payment deadline is known. Use [Your name], [Claim number] style placeholders.`,
+  parameters: {
+    type: "object",
+    properties: {
+      title: str("e.g. ER bill from Tampa General, March 3"), provider_or_insurer: strOrNull("Who sent it"),
+      findings: { type: "array", items: { type: "object", properties: { issue: str("Kind of problem"), detail: str("What you saw and why it matters"), amount: { type: "number", description: "USD involved" } }, required: ["issue", "detail"] } },
+      estimated_savings: { type: "number", description: "USD" },
+      financial_assistance: strOrNull("Eligibility rules you found and how to apply"),
+      next_steps: { type: "array", items: { type: "string" } },
+      letter: strOrNull("Full letter draft"), letter_type: { type: "string", enum: ["appeal", "itemized_bill_request", "financial_assistance", "dispute", "other"] },
+      phone_script: strOrNull("What to say when calling"), deadline: strOrNull("YYYY-MM-DD"),
+    },
+    required: ["title"],
+  },
+  label: args => `Building your bill case${args?.provider_or_insurer ? ` for ${clip(args.provider_or_insurer, 40)}` : ""}`,
+  run: async (args, ctx) => {
+    const parsed = BillCaseAction.safeParse({ ...args, kind: "bill_case" })
+    if (!parsed.success) return { error: "Not saved. Fix these and call again.", problems: problems(parsed.error) }
+    const task = saveTask(ctx, parsed.data)
+    return { saved: true, title: task.title, findings: parsed.data.findings.length, deadline: parsed.data.deadline || null }
+  },
+}
+
+const rxSavings: AgentTool = {
+  name: "prepare_rx_savings",
+  description: "Save a price comparison for one medication: prices[] with each pharmacy or program (Amazon Pharmacy, Cost Plus Drugs, Publix, a discount card, their insurance copay), the price in USD you actually saw on a page, a note on quantity and terms, and the url. best is which to pick and why. alternatives are generic or therapeutic options to ask their prescriber about. Never invent a price; leave price out and say 'check' in the note when you couldn't see one. Switching or ordering is the person's step.",
+  parameters: {
+    type: "object",
+    properties: {
+      medication: str("Name and dose as recorded"),
+      prices: { type: "array", items: { type: "object", properties: { pharmacy: str("Pharmacy or program"), price: { type: "number", description: "USD" }, note: strOrNull("Quantity, membership or coupon terms"), url: strOrNull("Page you saw it on") }, required: ["pharmacy"] } },
+      best: strOrNull("Which to pick and why"), alternatives: { type: "array", items: { type: "string" } },
+    },
+    required: ["medication", "prices"],
+  },
+  label: args => `Comparing prices for ${clip(args?.medication, 40)}`,
+  run: async (args, ctx) => {
+    const parsed = RxSavingsAction.safeParse({ ...args, kind: "rx_savings" })
+    if (!parsed.success) return { error: "Not saved. Fix these and call again.", problems: problems(parsed.error) }
+    const task = saveTask(ctx, parsed.data)
+    return { saved: true, title: task.title, priced: parsed.data.prices.filter(o => o.price != null).length }
+  },
+}
+
+const followUp: AgentTool = {
+  name: "add_follow_up",
+  description: "Add one open loop to the person's list with a due date (YYYY-MM-DD): a flagged lab that needs a recheck, a screening due for their age and sex, a referral not booked, results still pending, a refill running out, or a visit to schedule. why says where it came from (the lab and date, the guideline); next_step says what to do in plain words. One call per item.",
+  parameters: {
+    type: "object",
+    properties: {
+      title: str("e.g. Recheck LDL cholesterol"), due_on: strOrNull("YYYY-MM-DD"),
+      why: str("Why, citing the record or guideline"), next_step: str("What to do"),
+      category: { type: "string", enum: ["lab_recheck", "screening", "referral", "results_pending", "refill", "visit", "other"] },
+    },
+    required: ["title", "why", "next_step"],
+  },
+  label: args => `Adding a follow-up: ${clip(args?.title, 50)}`,
+  run: async (args, ctx) => {
+    const parsed = FollowUpAction.safeParse({ ...args, kind: "follow_up" })
+    if (!parsed.success) return { error: "Not saved. Fix these and call again.", problems: problems(parsed.error) }
+    const task = saveTask(ctx, parsed.data)
+    return { saved: true, title: task.title, due_on: parsed.data.due_on || null }
+  },
+}
+
 export const TOOLSETS: Record<AgentId, AgentTool[]> = {
-  appointments: [webBrowse, prepareAppointment, listTasks, updateTask],
-  medications: [medReminder, refill, drugLabel, webBrowse, listTasks, updateTask],
+  care_finder: [recallFacts, npiLookup, webBrowse, careOptions, prepareAppointment, rememberFact, listTasks, updateTask],
+  bill_advocate: [recallFacts, webBrowse, billCase, rememberFact, listTasks, updateTask],
+  rx_saver: [recallFacts, webBrowse, drugLabel, rxSavings, refill, medReminder, rememberFact, listTasks, updateTask],
+  follow_through: [recallFacts, listTasks, followUp, prepareAppointment, medReminder, webBrowse, updateTask],
   research: [pubmed, drugLabel, trials, webBrowse, researchBrief, listTasks],
-  shopping: [webBrowse, drugLabel, shoppingList, listTasks, updateTask],
 }
 
 export function toolSchemas(tools: AgentTool[]): ToolSchema[] {

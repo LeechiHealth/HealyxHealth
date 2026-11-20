@@ -1,14 +1,19 @@
 "use client"
 
 import * as React from "react"
-import type { AgentId } from "@/lib/agents/config"
+import type { StoredAgentId } from "@/lib/agents/config"
 import { cn } from "@/lib/utils"
 
 // Original character avatars: a simple shape per agent with two eyes.
-const PALETTE: Record<AgentId, { from: string; to: string }> = {
+const PALETTE: Record<StoredAgentId, { from: string; to: string }> = {
+  care_finder: { from: "#7cc4ff", to: "#2f7cf6" },
+  bill_advocate: { from: "#b79bff", to: "#7c4dff" },
+  rx_saver: { from: "#7ee2c8", to: "#14a37f" },
+  follow_through: { from: "#ffc27a", to: "#f2841d" },
+  research: { from: "#7ee2a0", to: "#1fb45a" },
+  // Retired agents, for saved history.
   appointments: { from: "#b79bff", to: "#7c4dff" },
   medications: { from: "#7cc4ff", to: "#2f7cf6" },
-  research: { from: "#7ee2a0", to: "#1fb45a" },
   shopping: { from: "#ffb46b", to: "#f26b1d" },
 }
 
@@ -21,9 +26,21 @@ function Eyes({ x, y, tilt = 0 }: { x: number; y: number; tilt?: number }) {
   )
 }
 
-function Shape({ agent, gradientId }: { agent: AgentId; gradientId: string }) {
+function Shape({ agent, gradientId }: { agent: StoredAgentId; gradientId: string }) {
   const fill = `url(#${gradientId})`
   switch (agent) {
+    case "care_finder":
+      // A map pin.
+      return <><path d="M24 44c-8-9.5-15-17.2-15-25a15 15 0 0 1 30 0c0 7.8-7 15.5-15 25z" fill={fill} /><Eyes x={20} y={19} tilt={6} /></>
+    case "bill_advocate":
+      // A shield.
+      return <><path d="M24 4l17 6v12c0 10.5-7.2 18.5-17 22-9.8-3.5-17-11.5-17-22V10z" fill={fill} /><Eyes x={20} y={22} tilt={-6} /></>
+    case "rx_saver":
+      // A rounded hexagon.
+      return <><path d="M16 6h16l11 18-11 18H16L5 24z" fill={fill} stroke={fill} strokeWidth="4" strokeLinejoin="round" /><Eyes x={20} y={23} tilt={8} /></>
+    case "follow_through":
+      // A soft rounded square.
+      return <><rect x="5" y="5" width="38" height="38" rx="13" fill={fill} /><Eyes x={20} y={22} tilt={-10} /></>
     case "appointments":
       return <><circle cx="24" cy="24" r="21" fill={fill} /><Eyes x={24} y={17} tilt={10} /></>
     case "medications":
@@ -52,7 +69,7 @@ function Shape({ agent, gradientId }: { agent: AgentId; gradientId: string }) {
   }
 }
 
-export function AgentAvatar({ agent, size = 40, className }: { agent: AgentId; size?: number; className?: string }) {
+export function AgentAvatar({ agent, size = 40, className }: { agent: StoredAgentId; size?: number; className?: string }) {
   const { from, to } = PALETTE[agent]
   // Unique per instance: a duplicate id inside a hidden pane would blank every avatar after it.
   const gradientId = `agent-grad-${agent}-${React.useId().replace(/[^a-zA-Z0-9_-]/g, "")}`
@@ -69,9 +86,4 @@ export function AgentAvatar({ agent, size = 40, className }: { agent: AgentId; s
   )
 }
 
-export const AGENT_ACCENTS: Record<AgentId, string> = {
-  appointments: PALETTE.appointments.to,
-  medications: PALETTE.medications.to,
-  research: PALETTE.research.to,
-  shopping: PALETTE.shopping.to,
-}
+export const AGENT_ACCENTS = Object.fromEntries(Object.entries(PALETTE).map(([id, colors]) => [id, colors.to])) as Record<StoredAgentId, string>

@@ -60,17 +60,85 @@ export const ShoppingAction = z.object({
   notes: optionalText(500),
 })
 
+const money = z.number().min(0).max(1_000_000).nullish().transform(value => value ?? undefined)
+
+// Field names match what the native app reads from task payloads.
+export const CareOptionsAction = z.object({
+  kind: z.literal("care_options"),
+  title: text(120),
+  need: text(300),
+  options: z.array(z.object({
+    name: text(160),
+    specialty: optionalText(120),
+    npi: z.string().regex(/^\d{10}$/).nullish().transform(value => value || undefined),
+    address: optionalText(240),
+    phone: optionalText(40),
+    distance_miles: z.number().min(0).max(500).nullish().transform(value => value ?? undefined),
+    next_opening: optionalText(120),
+    price: money,
+    in_network: z.enum(["yes", "no", "unknown"]).nullish().transform(value => value ?? "unknown"),
+    notes: optionalText(400),
+    url: optionalText(400),
+  })).min(1).max(6),
+  call_script: text(1500),
+})
+
+export const BillCaseAction = z.object({
+  kind: z.literal("bill_case"),
+  title: text(120),
+  provider_or_insurer: optionalText(160),
+  findings: z.array(z.object({
+    issue: text(80),
+    detail: text(500),
+    amount: money,
+  })).max(8).nullish().transform(value => value ?? []),
+  estimated_savings: money,
+  financial_assistance: optionalText(800),
+  next_steps: list(text(240), 6),
+  letter: optionalText(4000),
+  letter_type: z.enum(["appeal", "itemized_bill_request", "financial_assistance", "dispute", "other"]).nullish().transform(value => value ?? undefined),
+  phone_script: optionalText(1200),
+  deadline: localDate,
+})
+
+export const RxSavingsAction = z.object({
+  kind: z.literal("rx_savings"),
+  medication: text(120),
+  best: optionalText(200),
+  prices: z.array(z.object({
+    pharmacy: text(80),
+    price: money,
+    note: optionalText(240),
+    url: optionalText(400),
+  })).min(1).max(8),
+  alternatives: list(text(240), 4),
+})
+
+export const FollowUpAction = z.object({
+  kind: z.literal("follow_up"),
+  title: text(120),
+  due_on: localDate,
+  why: text(400),
+  next_step: text(300),
+  category: z.enum(["lab_recheck", "screening", "referral", "results_pending", "refill", "visit", "other"]).nullish().transform(value => value ?? "other"),
+})
+
 export type AppointmentAction = z.infer<typeof AppointmentAction>
 export type MedReminderAction = z.infer<typeof MedReminderAction>
 export type RefillAction = z.infer<typeof RefillAction>
 export type ShoppingAction = z.infer<typeof ShoppingAction>
-export type AgentAction = AppointmentAction | MedReminderAction | RefillAction | ShoppingAction
+export type CareOptionsAction = z.infer<typeof CareOptionsAction>
+export type BillCaseAction = z.infer<typeof BillCaseAction>
+export type RxSavingsAction = z.infer<typeof RxSavingsAction>
+export type FollowUpAction = z.infer<typeof FollowUpAction>
+export type AgentAction = AppointmentAction | MedReminderAction | RefillAction | ShoppingAction | CareOptionsAction | BillCaseAction | RxSavingsAction | FollowUpAction
 
 const ALLOWED: Record<AgentId, z.ZodTypeAny[]> = {
-  appointments: [AppointmentAction],
-  medications: [MedReminderAction, RefillAction],
+  care_finder: [CareOptionsAction, AppointmentAction],
+  bill_advocate: [BillCaseAction],
+  rx_saver: [RxSavingsAction, RefillAction, MedReminderAction],
+  follow_through: [FollowUpAction, AppointmentAction, MedReminderAction],
   research: [],
-  shopping: [ShoppingAction],
 }
 
 /** Keeps only well-formed actions this agent is allowed to prepare. Invalid ones are dropped, not repaired. */
@@ -94,5 +162,17 @@ export const RunRequest = z.object({
   now: z.string().refine(isLocalDateTime, "Expected YYYY-MM-DDTHH:MM"),
   tz: z.string().max(64).optional(),
   tzOffsetMinutes: z.number().int().min(-840).max(840).optional().default(0),
+  // Photos (bills, statements, labels): up to 3, same limits as /api/chat.
+  images: z.array(z.object({
+    mimeType: z.enum(["image/jpeg", "image/png", "image/heic", "image/webp"]),
+    data: z.string().max(5_600_000),
+  }).strict()).max(3).optional(),
+  // Rounded location for "near me" searches. Never stored by the run.
+  location: z.object({
+    lat: z.number().min(-90).max(90),
+    lon: z.number().min(-180).max(180),
+    city: z.string().trim().max(80).optional(),
+    zip: z.string().trim().regex(/^\d{5}$/).optional(),
+  }).optional(),
 })
 export type RunRequest = z.infer<typeof RunRequest>

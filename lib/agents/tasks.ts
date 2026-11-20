@@ -1,13 +1,13 @@
-import type { AgentId } from "./config"
+import type { AgentId, StoredAgentId } from "./config"
 import { localToUtcIso, refillDates } from "./dates"
 import type { AgentAction } from "./schema"
 
-export type TaskKind = "appointment" | "med_reminder" | "refill_request" | "research_brief" | "shopping_list"
+export type TaskKind = "appointment" | "med_reminder" | "refill_request" | "research_brief" | "shopping_list" | "care_options" | "bill_case" | "rx_savings" | "follow_up"
 export type TaskStatus = "todo" | "waiting" | "done" | "dismissed"
 
 export interface AgentTask {
   id: string
-  agent: AgentId
+  agent: StoredAgentId
   kind: TaskKind
   title: string
   status: TaskStatus
@@ -27,14 +27,14 @@ export interface MessageMeta {
 
 export interface AgentMessage {
   id: string
-  agent: AgentId
+  agent: StoredAgentId
   role: "user" | "assistant"
   content: string
   created_at: string
   meta?: MessageMeta | null
 }
 
-export type NewTask = Omit<AgentTask, "id" | "created_at" | "local">
+export type NewTask = Omit<AgentTask, "id" | "created_at" | "local" | "agent"> & { agent: AgentId }
 
 export function taskFromAction(agent: AgentId, action: AgentAction, ctx: { today: string; tzOffsetMinutes: number }): NewTask {
   switch (action.kind) {
@@ -59,6 +59,22 @@ export function taskFromAction(agent: AgentId, action: AgentAction, ctx: { today
     }
     case "shopping_list":
       return { agent, kind: "shopping_list", title: action.title, status: "todo", due_at: null, payload: { ...action } }
+    case "care_options":
+      return { agent, kind: "care_options", title: action.title, status: "todo", due_at: null, payload: { ...action } }
+    case "bill_case":
+      return {
+        agent, kind: "bill_case", title: action.title, status: "todo",
+        due_at: action.deadline ? localToUtcIso(`${action.deadline}T09:00`, ctx.tzOffsetMinutes) : null,
+        payload: { ...action },
+      }
+    case "rx_savings":
+      return { agent, kind: "rx_savings", title: `Save on ${action.medication}`, status: "todo", due_at: null, payload: { ...action } }
+    case "follow_up":
+      return {
+        agent, kind: "follow_up", title: action.title, status: "todo",
+        due_at: action.due_on ? localToUtcIso(`${action.due_on}T09:00`, ctx.tzOffsetMinutes) : null,
+        payload: { ...action },
+      }
   }
 }
 

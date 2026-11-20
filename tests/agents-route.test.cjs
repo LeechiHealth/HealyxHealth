@@ -71,7 +71,7 @@ function loadRoute({ authenticated = true, turns = [], providers = ['groq'], fet
   return { post: route.POST, requests, db }
 }
 
-const body = extra => ({ json: async () => ({ agent: 'medications', message: 'Remind me to take my thyroid pill at 7', now: '2026-11-09T21:30', tz: 'America/New_York', tzOffsetMinutes: 300, ...extra }) })
+const body = extra => ({ json: async () => ({ agent: 'rx_saver', message: 'Remind me to take my thyroid pill at 7', now: '2026-11-09T21:30', tz: 'America/New_York', tzOffsetMinutes: 300, ...extra }) })
 
 async function events(result) {
   const text = await result.text()
@@ -86,7 +86,7 @@ test('unauthenticated requests never reach the provider', async () => {
 
 test('invalid input is rejected before the provider', async () => {
   const route = loadRoute()
-  for (const extra of [{ agent: 'billing' }, { message: '' }, { now: 'tomorrow' }]) assert.equal((await route.post(body(extra))).status, 400)
+  for (const extra of [{ agent: 'billing' }, { agent: 'appointments' }, { message: '' }, { now: 'tomorrow' }, { images: [{ mimeType: 'image/gif', data: 'AAAA' }] }]) assert.equal((await route.post(body(extra))).status, 400)
   assert.equal(route.requests.length, 0)
 })
 
@@ -133,7 +133,7 @@ test('the agent chains tools, fixes its own mistakes, and streams each step', as
   assert.equal(refill.payload.remind_on, '2026-11-14')
   assert.equal(done.meta.steps.length, 3)
   assert.equal(route.requests.length, 3)
-  assert.match(route.requests[0].messages[0].content, /You are Medications/)
+  assert.match(route.requests[0].messages[0].content, /You are Rx Saver/)
   assert.match(route.requests[0].messages[0].content, /Monday 2026-11-09 \(today\)/)
   assert.match(route.requests[0].messages[1].content, /Levothyroxine/)
   assert.ok(route.requests[0].tools.some(t => t.function.name === 'set_medication_reminder'))
@@ -168,7 +168,7 @@ test('unknown tools, bad JSON and failing tools are reported back to the model',
       return finalTurn('I could not reach the web just now.')
     },
   ] })
-  const done = (await events(await route.post(body({ agent: 'appointments', message: 'Find a clinic' })))).find(e => e.type === 'done')
+  const done = (await events(await route.post(body({ agent: 'care_finder', message: 'Find a clinic' })))).find(e => e.type === 'done')
   assert.match(done.reply, /could not reach/)
 })
 
@@ -190,13 +190,13 @@ test('agents can move tasks in the person\'s own queue', async () => {
 
 test('a reply claiming something was booked or sent is replaced', async () => {
   const route = loadRoute({ turns: [finalTurn("Done! I've booked your physical for Friday.")] })
-  const done = (await events(await route.post(body({ agent: 'appointments', message: 'Book my physical' })))).find(e => e.type === 'done')
+  const done = (await events(await route.post(body({ agent: 'care_finder', message: 'Book my physical' })))).find(e => e.type === 'done')
   assert.match(done.reply, /Nothing has been sent, booked or bought/)
 })
 
 test('a present emergency leads with 911 and the agent still helps', async () => {
   const route = loadRoute({ turns: [finalTurn('I can find the nearest ER.')] })
-  const done = (await events(await route.post(body({ agent: 'appointments', message: "I'm having chest pain right now" })))).find(e => e.type === 'done')
+  const done = (await events(await route.post(body({ agent: 'care_finder', message: "I'm having chest pain right now" })))).find(e => e.type === 'done')
   assert.equal(done.urgent, 'emergency')
   assert.match(done.reply, /^If this is happening now.*911/)
 })
