@@ -28,11 +28,28 @@ const ChatSchema = z.object({
     mimeType: z.string().max(100),
     name: z.string().max(255).optional(),
   }).optional(),
+  // Photos from the native app: up to 3, each at most 4 MB once decoded.
+  images: z.array(z.object({
+    mimeType: z.enum(['image/jpeg', 'image/png', 'image/heic', 'image/webp']),
+    data: z.string().max(5_600_000),
+  }).strict()).max(3).optional(),
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string().max(4000),
   })).max(20).optional(),
 })
+
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024
+const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/
+
+/** Strict base64 check plus decoded size; returns an error message or null. */
+function imageProblem(image: { data: string }): string | null {
+  const data = image.data
+  if (!data || data.length % 4 !== 0 || !BASE64_RE.test(data)) return 'Each photo must be base64 encoded.'
+  const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0
+  if ((data.length / 4) * 3 - padding > MAX_IMAGE_BYTES) return 'Each photo must be 4 MB or smaller.'
+  return null
+}
 
 // ── PDF text extraction (same zlib approach as labs/extract) ───────────────
 function decodePDFString(s: string): string {
@@ -110,9 +127,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
-    const { message, fileData, conversationHistory } = parsed.data
+    const { message, fileData, images, conversationHistory } = parsed.data
 
-    if (!message?.trim() && !fileData) {
+    if (images?.length) {
+      for (const image of images) {
+        const problem = imageProblem(image)
+        if (problem) return NextResponse.json({ error: problem }, { status: 400 })
+      }
+      if (!process.env.GEMINI_API_KEY?.trim()) {
+        return NextResponse.json({ error: 'Photo questions need the Gemini key set on the server.', code: 'AI_NOT_CONFIGURED' }, { status: 503 })
+      }
+    }
+
+    if (!message?.trim() && !fileData && !images?.length) {
       return NextResponse.json({ error: 'Message or file required' }, { status: 400 })
     }
 
@@ -146,6 +173,28 @@ export async function POST(request: NextRequest) {
       for (const turn of conversationHistory.slice(-10)) {
         historyMessages.push({ role: turn.role, content: turn.content })
       }
+    }
+
+    // ── Photos from the native app: Gemini (vision) only ─────────────────────
+    if (images?.length) {
+      const textPrompt = userText || 'Please look at this and explain what it shows in plain English. Highlight anything worth discussing with my doctor.'
+      const content: ContentPart[] = [
+        ...images.map(image => ({ type: 'image_url' as const, image_url: { url: `data:${image.mimeType};base64,${image.data}` } })),
+        { type: 'text', text: textPrompt },
+      ]
+      const { message: answer } = await chat({
+        messages: [
+          { role: 'system', content: effectiveSystemPrompt },
+          ...historyMessages,
+          { role: 'user', content },
+        ],
+        max_tokens: 1500,
+        temperature: 0.7,
+      }, process.env, { onlyGemini: true })
+
+      const reply = stripReasoning(typeof answer.content === 'string' ? answer.content : '')
+      if (!reply) return NextResponse.json({ error: 'Empty response from model' }, { status: 500 })
+      return NextResponse.json({ reply })
     }
 
     // ── Image: vision model ──────────────────────────────────────────────────
