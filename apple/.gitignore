@@ -1,0 +1,10 @@
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+# Swift Package Manager
+.build/
+.swiftpm/
+HealyxKit/.build/
+HealyxKit/.swiftpm/
