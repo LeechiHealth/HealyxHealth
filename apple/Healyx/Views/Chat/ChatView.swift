@@ -14,6 +14,7 @@ struct ChatView: View {
     @Environment(AppRouter.self) private var router
     @Environment(SessionStore.self) private var session
     @Environment(RecordsStore.self) private var records
+    @Environment(WellnessStore.self) private var wellness
     @State private var savingLabs: UUID?
     @State private var labsNotice: [UUID: String] = [:]
 
@@ -41,6 +42,9 @@ struct ChatView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 MessageBubble(role: message.role, text: message.text, isError: message.isError,
                                               images: message.images, showsBuddy: true)
+                                if message.role == .assistant && !message.saves.isEmpty {
+                                    savedChips(message)
+                                }
                                 if message.role == .assistant && !message.labs.isEmpty {
                                     saveLabsCard(message)
                                 }
@@ -93,6 +97,7 @@ struct ChatView: View {
         .photosPicker(isPresented: $showPhotoPicker, selection: $pickerItems,
                       maxSelectionCount: max(1, 3 - attachments.count), matching: .images)
         .onChange(of: pickerItems) { loadPickedPhotos() }
+        .onAppear { chat.attach(records: records, wellness: wellness) }
         .task(id: router.pendingQuestion) {
             guard let question = router.pendingQuestion else { return }
             router.pendingQuestion = nil
@@ -429,6 +434,54 @@ struct ChatView: View {
     }
 
     // MARK: Lab results from photos
+
+    /// "Saved: Sleep 11:00 PM to 6:30 AM (7h 10m)" with Undo, one per thing saved.
+    private func savedChips(_ message: ChatStore.Message) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(message.saves) { item in
+                savedChip(item, messageID: message.id)
+            }
+        }
+        .padding(.leading, 34)
+    }
+
+    @ViewBuilder
+    private func savedChip(_ item: ChatStore.SavedItem, messageID: UUID) -> some View {
+        HStack(spacing: 8) {
+            switch item.state {
+            case .saving:
+                ProgressView().controlSize(.mini)
+                Text("Saving \(item.title)").foregroundStyle(Theme.muted)
+            case .saved:
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.green)
+                Text("Saved: \(item.title)").foregroundStyle(Theme.foreground)
+                Spacer(minLength: 4)
+                Button("Undo") { Task { await chat.undoSave(item.id, in: messageID) } }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.primary)
+                    .fontWeight(.semibold)
+            case .undone:
+                Image(systemName: "arrow.uturn.backward.circle").foregroundStyle(Theme.muted)
+                Text("Undone: \(item.title)").strikethrough().foregroundStyle(Theme.muted)
+            case .failed(let reason):
+                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Theme.warning)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Couldn't save \(item.title)").foregroundStyle(Theme.foreground)
+                    Text(reason).font(.caption2).foregroundStyle(Theme.muted)
+                }
+                Spacer(minLength: 4)
+                Button("Retry") { Task { await chat.retrySave(item.id, in: messageID) } }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.primary)
+                    .fontWeight(.semibold)
+            }
+        }
+        .font(.footnote)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Theme.secondary.opacity(0.7), in: Capsule())
+        .fixedSize(horizontal: false, vertical: true)
+    }
 
     private func saveLabsCard(_ message: ChatStore.Message) -> some View {
         let numeric = message.labs.filter { $0.value != nil }

@@ -15,22 +15,13 @@ extension View {
     }
 }
 
-/// The floating bottom bar on iPhone: a round Home button and an "Ask Healyx" pill.
+/// The floating bottom bar on iPhone: a round Home button and an "Ask Healyx" pill, then Records and Agents.
 struct GlassBar: View {
     @Environment(AppRouter.self) private var router
 
     var body: some View {
         HStack(spacing: 10) {
-            Button { router.section = .home } label: {
-                Image(systemName: "house.fill")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(router.section == .home ? Theme.primary : Theme.foreground)
-                    .frame(width: 56, height: 56)
-                    .contentShape(Circle())
-                    .liquidGlass(in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Home")
+            circleButton("house.fill", "Home", .home)
 
             Button { router.section = .guide } label: {
                 HStack(spacing: 10) {
@@ -40,18 +31,35 @@ struct GlassBar: View {
                         .foregroundStyle(Theme.foreground)
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity)
-                .frame(height: 56)
+                .frame(height: 54)
                 .contentShape(Capsule())
                 .liquidGlass(in: Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Ask Healyx")
+
+            circleButton(AppSection.records.symbol, "Health Records", .records)
+            circleButton(AppSection.agents.symbol, "Agents", .agents)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 16)
         .padding(.top, 6)
         .padding(.bottom, 6)
+    }
+
+    /// A small round liquid-glass button that switches section.
+    private func circleButton(_ symbol: String, _ label: String, _ section: AppSection) -> some View {
+        Button { router.section = section } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(router.section == section ? Theme.primary : Theme.foreground)
+                .frame(width: 54, height: 54)
+                .contentShape(Circle())
+                .liquidGlass(in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 

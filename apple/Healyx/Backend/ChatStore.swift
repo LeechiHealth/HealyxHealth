@@ -21,12 +21,32 @@ final class ChatStore {
         /// Lab results the guide read from a photo, ready to save to Health Records.
         var labs: [HealyxAPI.ExtractedLab] = []
         var labsSaved = false
+        /// Things from this reply that were saved to the account.
+        var saves: [SavedItem] = []
+    }
+
+    /// One thing Ask Healyx saved (or tried to save) from what the person said.
+    struct SavedItem: Identifiable, Hashable {
+        enum State: Hashable { case saving, saved, undone, failed(String) }
+        let id = UUID()
+        let action: ChatAction
+        var state: State = .saving
+        var undo: ChatActionRunner.Undo?
+        var title: String { action.summary() }
     }
 
     private(set) var messages: [Message] = []
     private(set) var isSending = false
 
     private let backend: HealyxBackend
+    @ObservationIgnored private weak var records: RecordsStore?
+    @ObservationIgnored private weak var wellness: WellnessStore?
+
+    /// Lets saves refresh the record and the Home scores.
+    func attach(records: RecordsStore, wellness: WellnessStore) {
+        self.records = records
+        self.wellness = wellness
+    }
 
     init(backend: HealyxBackend = .shared) {
         self.backend = backend
@@ -46,7 +66,10 @@ final class ChatStore {
         do {
             let payload = encoded.map { HealyxAPI.ChatImage(base64: $0.base64EncodedString()) }
             let result = try await backend.api.chatResult(message: question, history: history, images: payload, voice: voice)
-            messages.append(Message(role: .assistant, text: result.reply, labs: result.extractedLabs))
+            var reply = Message(role: .assistant, text: result.reply, labs: result.extractedLabs)
+            reply.saves = result.actions.map { SavedItem(action: $0) }
+            messages.append(reply)
+            if !reply.saves.isEmpty { await performSaves(in: reply.id) }
             return result.reply
         } catch {
             messages.append(Message(role: .assistant, text: error.localizedDescription, isError: true))
@@ -56,6 +79,61 @@ final class ChatStore {
 
     func reset() {
         messages = []
+    }
+
+    // MARK: Saving what the person said
+
+    private func performSaves(in messageID: UUID) async {
+        guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return }
+        for item in messages[index].saves where item.state == .saving {
+            await perform(item.id, in: messageID)
+        }
+        await refreshAfterSave()
+    }
+
+    private func perform(_ itemID: UUID, in messageID: UUID) async {
+        guard let m = messages.firstIndex(where: { $0.id == messageID }),
+              let i = messages[m].saves.firstIndex(where: { $0.id == itemID }) else { return }
+        let action = messages[m].saves[i].action
+        messages[m].saves[i].state = .saving
+        do {
+            let undo = try await ChatActionRunner.perform(action, records: records)
+            setSave(itemID, in: messageID) { $0.state = .saved; $0.undo = undo }
+        } catch {
+            let reason = (error as? LocalizedError)?.errorDescription ?? "Please try again."
+            setSave(itemID, in: messageID) { $0.state = .failed(reason) }
+        }
+    }
+
+    private func setSave(_ itemID: UUID, in messageID: UUID, _ change: (inout SavedItem) -> Void) {
+        guard let m = messages.firstIndex(where: { $0.id == messageID }),
+              let i = messages[m].saves.firstIndex(where: { $0.id == itemID }) else { return }
+        change(&messages[m].saves[i])
+    }
+
+    /// Tries a failed save again.
+    func retrySave(_ itemID: UUID, in messageID: UUID) async {
+        await perform(itemID, in: messageID)
+        await refreshAfterSave()
+    }
+
+    /// Takes a save back.
+    func undoSave(_ itemID: UUID, in messageID: UUID) async {
+        guard let m = messages.firstIndex(where: { $0.id == messageID }),
+              let item = messages[m].saves.first(where: { $0.id == itemID }), let undo = item.undo else { return }
+        do {
+            try await ChatActionRunner.undo(undo)
+            setSave(itemID, in: messageID) { $0.state = .undone; $0.undo = nil }
+            await refreshAfterSave()
+        } catch {
+            setSave(itemID, in: messageID) { $0.state = .failed("Couldn't undo. Please try again.") }
+        }
+    }
+
+    private func refreshAfterSave() async {
+        await ManualLogStore.shared.load()
+        await records?.reload()
+        await wellness?.refresh()
     }
 
     /// Saves the numeric lab results read from a photo to Health Records.
@@ -159,8 +237,8 @@ enum AppSection: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .home: return "house.fill"
         case .guide: return "sparkles"
-        case .records: return "heart.text.square"
-        case .agents: return "person.2"
+        case .records: return "heart.text.square.fill"
+        case .agents: return "wand.and.sparkles"
         }
     }
 }

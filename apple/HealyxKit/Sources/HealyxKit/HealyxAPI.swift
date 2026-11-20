@@ -153,14 +153,18 @@ public struct HealyxAPI: Sendable {
     public struct ChatResult: Decodable, Sendable {
         public var reply: String
         public var extractedLabs: [ExtractedLab]
+        /// Things the person said about themselves, to save to their account.
+        public var actions: [ChatAction]
 
-        enum CodingKeys: String, CodingKey { case reply, extractedLabs }
+        enum CodingKeys: String, CodingKey { case reply, extractedLabs, actions }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             reply = try c.decode(String.self, forKey: .reply)
             let labs: [ExtractedLab]? = try? c.decodeIfPresent([ExtractedLab].self, forKey: .extractedLabs)
             extractedLabs = (labs ?? []).filter { !$0.name.isEmpty }
+            let raw = (try? c.decodeIfPresent([JSONValue].self, forKey: .actions)) ?? []
+            actions = raw.compactMap { ChatAction(json: $0) }
         }
     }
 
@@ -176,6 +180,9 @@ public struct HealyxAPI: Sendable {
             })
         }
         if voice { body["voice"] = .bool(true) }
+        // The person's local time, so "last night" is saved on the right night.
+        body["now"] = .string(HealyxDate.localDateTimeString(Date()))
+        body["tz"] = .string(TimeZone.current.identifier)
         return body
     }
 

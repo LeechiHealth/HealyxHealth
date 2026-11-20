@@ -63,11 +63,6 @@ struct HomeView: View {
                         .padding(.vertical, 30)
                 }
 
-                sectionTitle("More")
-                HStack(spacing: 12) {
-                    shortcut("Health Records", "heart.text.square", Theme.pink) { router.section = .records }
-                    shortcut("Agents", "person.2", Theme.indigo) { router.section = .agents }
-                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)

@@ -532,3 +532,31 @@ final class KDMTests: XCTestCase {
         XCTAssertNil(BiologicalSex(profileValue: "prefer not to say"))
     }
 }
+
+// MARK: - Chat actions
+
+final class ChatActionTests: XCTestCase {
+    func testParsesSleepAndRejectsBadActions() throws {
+        let json = """
+        {"reply":"Logged your sleep.","actions":[
+          {"type":"log_sleep","bedtime":"2026-11-19T23:00","wake_time":"2026-11-20T06:30","wakeups":2},
+          {"type":"log_sleep","bedtime":"2026-11-20T07:00","wake_time":"2026-11-20T06:00"},
+          {"type":"delete_everything"},
+          {"type":"log_vital","kind":"blood_pressure","value":122,"value2":78},
+          {"type":"add_lab","name":"A1c","value":5.4,"unit":"%"}
+        ]}
+        """
+        let result = try HealyxJSON.decoder.decode(HealyxAPI.ChatResult.self, from: Data(json.utf8))
+        XCTAssertEqual(result.actions.count, 3)
+        guard case let .sleep(bed, wake, _, wakeUps, _, _) = result.actions[0] else { return XCTFail("sleep") }
+        XCTAssertEqual(wake.timeIntervalSince(bed), 7.5 * 3600)
+        XCTAssertEqual(wakeUps, 2)
+        XCTAssertEqual(result.actions[1].summary(), "Blood pressure 122/78")
+        XCTAssertEqual(result.actions[2].summary(), "A1c 5.4 %")
+    }
+
+    func testRepliesWithoutActionsStillDecode() throws {
+        let result = try HealyxJSON.decoder.decode(HealyxAPI.ChatResult.self, from: Data(#"{"reply":"Hi"}"#.utf8))
+        XCTAssertTrue(result.actions.isEmpty)
+    }
+}
