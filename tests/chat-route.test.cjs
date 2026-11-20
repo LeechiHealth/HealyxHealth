@@ -16,11 +16,11 @@ function loadRoute({ authenticated = true, configured = true, gemini = false } =
     if (name === 'next/server') return { NextResponse: { json } }
     if (name === '@/lib/serverAuth') return { authenticateRequest: async () => authenticated ? { user: { id: 'verified-account' }, supabase: database } : { response: json({ error: 'Sign in' }, { status: 401 }) } }
     if (name === '@/lib/groq/client') return { GROQ_VISION_MODEL: 'synthetic-vision', stripReasoning: text => text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim() }
-    if (name === '@/lib/agents/llm') return { agentProviders: () => (configured ? [{ name: 'synthetic' }] : []), chat: async (input, env, options) => { calls.push({ ...input, model: 'synthetic-model', options }); return { message: { role: 'assistant', content: 'Synthetic answer' }, provider: 'synthetic' } } }
+    if (name === '@/lib/agents/llm') return { agentProviders: () => (configured ? [{ name: 'synthetic' }] : []), chat: async (input, env, options) => { calls.push({ ...input, model: 'synthetic-model', options }); return { message: { role: 'assistant', content: scope.answer || 'Synthetic answer' }, provider: 'synthetic' } } }
     return require(name)
   } }
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../app/api/chat/route.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, scope)
-  return { post: scope.exports.POST, calls }
+  return { post: scope.exports.POST, calls, scope }
 }
 const request = body => ({ json: async () => body })
 test('chat rejects unauthenticated requests before loading records or calling AI', async () => {
@@ -81,4 +81,19 @@ test('chat rejects bad photos', async () => {
   const result = await post(request({ images: [{ mimeType: 'image/png', data: big }] }))
   assert.equal(result.status, 400)
   assert.equal(result.body.error, 'Each photo must be 4 MB or smaller.')
+})
+
+test('chat photos pull out lab results and hide the block from the reply', async () => {
+  const { post, scope } = loadRoute({ gemini: true })
+  scope.answer = 'Your A1c is normal.\n```healyx-labs\n[{"name":"Hemoglobin A1c","value":5.4,"unit":"%","range":"4.0-5.6","date":"2026-05-23"},{"name":""}]\n```'
+  const result = await post(request({ images: [{ mimeType: 'image/jpeg', data: 'aGVsbG8=' }] }))
+  assert.equal(result.status, 200)
+  assert.equal(result.body.reply, 'Your A1c is normal.')
+  assert.equal(result.body.extractedLabs.length, 1)
+  assert.equal(result.body.extractedLabs[0].value, 5.4)
+})
+test('chat voice flag asks for short spoken answers', async () => {
+  const { post, calls } = loadRoute()
+  assert.equal((await post(request({ message: 'How am I doing?', voice: true }))).status, 200)
+  assert.match(calls.find(c => c.model).messages[0].content, /spoken aloud/)
 })
